@@ -1,0 +1,11 @@
+pandas
+fastapi
+graphdatascience
+uvicorn
+pydantic
+requests
+mcp
+langchain-core
+langchain-mcp-adapters
+jinja2
+httpx

@@ -1,0 +1,23 @@
+services:
+  # MCP App
+  mcp-app:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8001:8001"  # For frontend
+    stdin_open: true  # allows you to send commands to processes running inside the container
+    tty: true   # allocates pseudo-TTY (terminal) for the container
+    environment:
+      - OLLAMA_HOST=http://host.docker.internal:11434
+      - NEO4J_URI=bolt://host.docker.internal:7687
+      - NEO4J_USERNAME=neo4j
+      - NEO4J_PASSWORD=password
+      - PYTHONUNBUFFERED=1
+      - MCP_SERVER_URL=http://127.0.0.1:8000  # Use localhost within the same container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - .:/app
+    restart: unless-stopped

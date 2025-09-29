@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Laundering Analyzer with MCP Tools</title>
+    <style>
+        :root {
+            --primary-bg: #0f0f0f;
+            --secondary-bg: #1a1a1a;
+            --chat-bg: #242424;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --text-muted: #71717a;
+            --border-color: #374151;
+            --user-bubble: #3b82f6;
+            --ai-bubble: #374151;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, var(--primary-bg) 0%, #1a1a2e 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+        }
+
+        .header h1 {
+            color: var(--text-primary);
+            margin: 0;
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-color), var(--success-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .main-content {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header h2 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            scroll-behavior: smooth;
+        }
+
+        .message {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            animation: fadeInUp 0.3s ease-out;
+        }
+
+        .message.user {
+            flex-direction: row-reverse;
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: var(--user-bubble);
+            color: white;
+        }
+
+        .message.ai .message-avatar {
+            background: var(--ai-bubble);
+            color: var(--text-primary);
+        }
+
+        .message-content {
+            max-width: 70%;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message.user .message-bubble {
+            background: var(--user-bubble);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.ai .message-bubble {
+            background: var(--ai-bubble);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-timestamp {
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 0 4px;
+        }
+
+        .message.user .message-timestamp {
+            text-align: right;
+        }
+
+        .chat-input-container {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-top: 1px solid var(--border-color);
+        }
+
+        .chat-input-wrapper {
+            position: relative;
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 24px;
+            background: var(--secondary-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            transition: border-color 0.2s ease;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+
+        .send-button {
+            padding: 12px 16px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 44px;
+            height: 44px;
+        }
+
+        .send-button:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            display: none;
+            padding: 12px 16px;
+            background: var(--ai-bubble);
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            max-width: 70px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typingDot 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        .sidebar {
+            width: 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .commands-panel {
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .commands-panel-header {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .commands-panel h3 {
+            color: var(--text-primary);
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .commands-panel-content {
+            padding: 20px;
+        }
+
+        .command-item {
+            background: var(--chat-bg);
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            border-left: 3px solid var(--accent-color);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .command-item:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        .command-item code {
+            color: var(--accent-color);
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+
+        .command-item .desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        .tool-section {
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+
+        .tool-section-header {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tool-section h2 {
+            color: var(--text-primary);
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .tool-section-content {
+            padding: 20px;
+        }
+
+        .tool-button {
+            background: var(--success-color);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tool-button:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .tool-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            background: var(--chat-bg);
+            border-left: 4px solid var(--accent-color);
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .result.error {
+            background: #2d1b1b;
+            border-left-color: var(--error-color);
+            color: #fca5a5;
+        }
+
+        .result.success {
+            background: #1b2d1b;
+            border-left-color: var(--success-color);
+            color: #86efac;
+        }
+
+        .tip {
+            background: var(--chat-bg);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 16px;
+            border: 1px solid var(--border-color);
+            line-height: 1.4;
+        }
+
+        .clear-chat {
+            background: var(--error-color);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .clear-chat:hover {
+            background: #dc2626;
+            transform: translateY(-1px);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes typingDot {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.4;
+            }
+            30% {
+                transform: translateY(-8px);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                order: -1;
+            }
+            .message-content {
+                max-width: 85%;
+            }
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛠️ ML TTP Analyzer with MCP Tools</h1>
+        </div>
+        
+        <div class="main-content">
+            <div class="chat-container">
+                <div class="chat-header">
+                    <h2>💬 Chat with Gemma3</h2>
+                    <button class="clear-chat" onclick="clearChat()">Clear Chat</button>
+                </div>
+                
+                <div class="chat-messages" id="chat-messages">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>Start a conversation with Gemma3 or use quick commands</p>
+                    </div>
+                </div>
+                
+                <div class="typing-indicator" id="typing-indicator">
+                    <div class="message ai">
+                        <div class="message-avatar">AI</div>
+                        <div class="message-content">
+                            <div class="typing-dots">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                        <textarea 
+                            id="chat-input" 
+                            class="chat-input" 
+                            placeholder="Type your message or command... (Enter to send, Shift+Enter for new line)"
+                            rows="1"></textarea>
+                        <button class="send-button" id="send-button" onclick="processInput()">
+                            <span>Send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar">
+                <div class="commands-panel">
+                    <div class="commands-panel-header">
+                        <h3>📋 Quick Commands</h3>
+                    </div>
+                    <div class="commands-panel-content">
+                        <div class="command-item" onclick="insertCommand('/fanin')">
+                            <code>/fanin /fan-in</code>
+                            <div class="desc">Run fan-in analysis on transaction graph</div>
+                        </div>
+                        <div class="command-item" onclick="insertCommand('/help')">
+                            <code>/help</code>
+                            <div class="desc">Show available commands</div>
+                        </div>
+                        <div class="tip">
+                            💡 <strong>Tip:</strong> Click commands to insert them or type directly in the chat
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tool-section">
+                    <div class="tool-section-header">
+                        <h2>🔍 Fan-In Analysis</h2>
+                    </div>
+                    <div class="tool-section-content">
+                        <p>Analyze transaction patterns to identify potential money laundering accounts</p>
+                        <button class="tool-button" onclick="runFanInAnalysis()">
+                            <span>🚀</span>
+                            Run Analysis
+                        </button>
+                        <div id="fanin-result"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chat state
+        let chatHistory = [];
+        let isProcessing = false;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            adjustTextareaHeight();
+        });
+
+        function setupEventListeners() {
+            const chatInput = document.getElementById('chat-input');
+            const sendButton = document.getElementById('send-button');
+
+            // Auto-resize textarea
+            chatInput.addEventListener('input', adjustTextareaHeight);
+            
+            // Enter sends message, Shift+Enter creates new line
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    processInput();
+                }
+            });
+
+            // Send button click
+            sendButton.addEventListener('click', processInput);
+        }
+
+        function adjustTextareaHeight() {
+            const textarea = document.getElementById('chat-input');
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        function formatTimestamp() {
+            return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function addMessage(content, sender = 'user', type = 'text') {
+            const messagesContainer = document.getElementById('chat-messages');
+            const emptyState = messagesContainer.querySelector('.empty-state');
+            
+            // Remove empty state if exists
+            if (emptyState) {
+                emptyState.remove();
+            }
+
+            // Create message element
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const timestamp = formatTimestamp();
+            const avatar = sender === 'user' ? 'You' : 'AI';
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-bubble">${content}</div>
+                    <div class="message-timestamp">${timestamp}</div>
+                </div>
+            `;
+
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+
+            // Store in history
+            chatHistory.push({
+                content,
+                sender,
+                type,
+                timestamp: new Date().toISOString()
+            });
+        }
+
+        function showTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.appendChild(indicator);
+            indicator.style.display = 'block';
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            const indicator = document.getElementById('typing-indicator');
+            indicator.style.display = 'none';
+        }
+
+        function scrollToBottom() {
+            const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function clearInput() {
+            const input = document.getElementById('chat-input');
+            input.value = '';
+            adjustTextareaHeight();
+        }
+
+        function setProcessingState(processing) {
+            isProcessing = processing;
+            const sendButton = document.getElementById('send-button');
+            const chatInput = document.getElementById('chat-input');
+            
+            sendButton.disabled = processing;
+            chatInput.disabled = processing;
+            
+            if (processing) {
+                sendButton.innerHTML = '<span>•••</span>';
+                showTypingIndicator();
+            } else {
+                sendButton.innerHTML = '<span>Send</span>';
+                hideTypingIndicator();
+            }
+        }
+
+        async function processInput() {
+            if (isProcessing) return;
+
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            
+            if (!message) return;
+
+            // Add user message
+            addMessage(message, 'user');
+            clearInput();
+            
+            // Check for commands
+            const lowerMessage = message.toLowerCase();
+            
+            // Fan-in command variations
+            if (lowerMessage === '/fanin' || lowerMessage === '/fan-in' || 
+                lowerMessage === 'fanin' || lowerMessage === 'fan-in' ||
+                lowerMessage === 'run fan-in' || lowerMessage === 'run fanin' ||
+                lowerMessage.includes('fan-in analysis') || lowerMessage.includes('fanin analysis')) {
+                
+                await runFanInAnalysisFromChat();
+                return;
+            }
+            
+            // Help command
+            if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage === '?') {
+                const helpContent = `📚 <strong>Available Commands:</strong><br><br>
+                    • <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph<br>
+                    • <strong>/help</strong> - Show this help message<br>
+                    • Any other text - Chat with Gemma3 AI model<br><br>
+                    You can also use the buttons in the sidebar for direct access to tools.`;
+                
+                addMessage(helpContent, 'ai');
+                return;
+            }
+            
+            // Otherwise, send to Gemma3
+            await chat(message);
+        }
+        
+        async function chat(message) {
+            setProcessingState(true);
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        model: 'gemma3'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage(`❌ Error: ${data.error}`, 'ai');
+                } else {
+                    addMessage(data.response, 'ai');
+                }
+            } catch (error) {
+                addMessage(`❌ Error: ${error.message}`, 'ai');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runFanInAnalysisFromChat() {
+            setProcessingState(true);
+            
+            try {
+                const response = await fetch('/api/fan-in-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage(`❌ Fan-in Analysis Error: ${data.error}`, 'ai');
+                } else {
+                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai');
+                }
+            } catch (error) {
+                addMessage(`❌ Fan-in Analysis Error: ${error.message}`, 'ai');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runFanInAnalysis() {
+            const result = document.getElementById('fanin-result');
+            const button = event.target;
+            
+            button.disabled = true;
+            button.innerHTML = '<span>🔄</span> Running...';
+            result.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/fan-in-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    result.innerHTML = `<div class="result error">❌ Error: ${data.error}</div>`;
+                } else {
+                    result.innerHTML = `<div class="result success">✅ ${data.response.replace(/\n/g, '<br>')}</div>`;
+                    // Also add to chat
+                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai');
+                }
+            } catch (error) {
+                result.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
+            } finally {
+                button.disabled = false;
+                button.innerHTML = '<span>🚀</span> Run Analysis';
+            }
+        }
+
+        function insertCommand(command) {
+            const input = document.getElementById('chat-input');
+            input.value = command;
+            input.focus();
+            adjustTextareaHeight();
+        }
+
+        function clearChat() {
+            if (confirm('Are you sure you want to clear the chat history?')) {
+                chatHistory = [];
+                const messagesContainer = document.getElementById('chat-messages');
+                messagesContainer.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">💬</div>
+                        <p>Start a conversation with Gemma3 or use quick commands</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
