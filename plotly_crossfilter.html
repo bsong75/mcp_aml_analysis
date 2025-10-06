@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Sales Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.5.4/crossfilter.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .chart-container {
+            background: #fafafa;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        
+        .chart-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #444;
+            text-align: center;
+        }
+        
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .reset-btn {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 0 10px;
+        }
+        
+        .reset-btn:hover {
+            background: #ff5252;
+        }
+        
+        .stats {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        
+        .pie-slice {
+            cursor: pointer;
+            stroke: white;
+            stroke-width: 2;
+        }
+        
+        .pie-slice:hover {
+            opacity: 0.8;
+        }
+        
+        .bar {
+            cursor: pointer;
+            fill: steelblue;
+        }
+        
+        .bar:hover {
+            fill: #4682b4;
+        }
+        
+        .bar.selected {
+            fill: #ff6b6b;
+        }
+        
+        .axis {
+            font-size: 12px;
+        }
+        
+        .axis text {
+            fill: #666;
+        }
+        
+        .legend {
+            font-size: 12px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        
+        .data-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 Interactive Sales Dashboard</h1>
+        
+        <div class="stats">
+            <span id="filtered-count">0</span> of <span id="total-count">0</span> records selected
+        </div>
+        
+        <div class="controls">
+            <button class="reset-btn" onclick="resetAllFilters()">Reset All Filters</button>
+        </div>
+        
+        <div class="dashboard">
+            <div class="chart-container">
+                <div class="chart-title">Sales by Category</div>
+                <div class="controls">
+                    <button class="reset-btn" onclick="resetCategoryFilter()">Reset Category</button>
+                </div>
+                <svg id="pie-chart"></svg>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-title">Monthly Sales</div>
+                <div class="controls">
+                    <button class="reset-btn" onclick="resetMonthFilter()">Reset Month</button>
+                </div>
+                <svg id="bar-chart"></svg>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="chart-title">Filtered Data</div>
+            <div id="data-table-container">
+                <table class="data-table" id="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Product</th>
+                            <th>Sales</th>
+                            <th>Region</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        // Load data from CSV
+        d3.csv("sales_data.csv").then(function(csvData) {
+            // Process data
+            const data = csvData.map(d => ({
+                date: new Date(d.date),
+                category: d.category,
+                product: d.product,
+                sales: +d.sales,
+                region: d.region,
+                month: d3.timeFormat('%Y-%m')(new Date(d.date))
+            }));
+
+            // Create crossfilter
+            const ndx = crossfilter(data);
+            const all = ndx.groupAll();
+
+            // Define dimensions
+            const categoryDim = ndx.dimension(d => d.category);
+            const monthDim = ndx.dimension(d => d3.timeFormat('%b')(d.date)); // Just month name (Jan, Feb, etc.)
+            const dateDim = ndx.dimension(d => d.date);
+
+            // Define groups
+            const categoryGroup = categoryDim.group().reduceSum(d => d.sales);
+            const monthGroup = monthDim.group().reduceSum(d => d.sales);
+
+            // Chart dimensions
+            const pieWidth = 300;
+            const pieHeight = 300;
+            const barWidth = 400;
+            const barHeight = 300;
+            const margin = {top: 20, right: 30, bottom: 40, left: 40};
+
+            // Color scales
+            const categoryColors = d3.scaleOrdinal()
+                .domain(['Electronics', 'Clothing', 'Books'])
+                .range(['#ff6b6b', '#4ecdc4', '#45b7d1']);
+
+            const monthColors = d3.scaleOrdinal(d3.schemeCategory10);
+
+            // Tooltip
+            const tooltip = d3.select('#tooltip');
+
+            // Create pie chart (donut style)
+            function createPieChart() {
+                const svg = d3.select('#pie-chart')
+                    .attr('width', pieWidth)
+                    .attr('height', pieHeight);
+
+                const radius = Math.min(pieWidth, pieHeight) / 2 - 10;
+                const g = svg.append('g')
+                    .attr('transform', `translate(${pieWidth/2},${pieHeight/2})`);
+
+                const pie = d3.pie()
+                    .value(d => d.value)
+                    .sort(null);
+
+                const path = d3.arc()
+                    .outerRadius(radius - 10)
+                    .innerRadius(radius * 0.3); // Create donut hole (50% of radius)
+
+                const labelArc = d3.arc()
+                    .outerRadius(radius - 30)
+                    .innerRadius(radius - 30);
+
+                return {svg, g, pie, path, labelArc};
+            }
+
+            // Create bar chart
+            function createBarChart() {
+                const svg = d3.select('#bar-chart')
+                    .attr('width', barWidth)
+                    .attr('height', barHeight);
+
+                const g = svg.append('g')
+                    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+                const width = barWidth - margin.left - margin.right;
+                const height = barHeight - margin.top - margin.bottom;
+
+                const x = d3.scaleBand()
+                    .range([0, width])
+                    .padding(0.1);
+
+                const y = d3.scaleLinear()
+                    .range([height, 0]);
+
+                const xAxis = d3.axisBottom(x);
+                const yAxis = d3.axisLeft(y);
+
+                g.append('g')
+                    .attr('class', 'axis axis--x')
+                    .attr('transform', `translate(0,${height})`);
+
+                g.append('g')
+                    .attr('class', 'axis axis--y');
+
+                return {svg, g, x, y, xAxis, yAxis, width, height};
+            }
+
+            // Initialize charts
+            const pieChart = createPieChart();
+            const barChart = createBarChart();
+
+            // Update functions
+            function updatePieChart() {
+                const data = categoryGroup.all().filter(d => d.value > 0);
+                
+                const arcs = pieChart.g.selectAll('.arc')
+                    .data(pieChart.pie(data));
+
+                const arcEnter = arcs.enter().append('g')
+                    .attr('class', 'arc');
+
+                arcEnter.append('path')
+                    .attr('class', 'pie-slice');
+
+                arcEnter.append('text')
+                    .attr('class', 'pie-label');
+
+                arcs.exit().remove();
+
+                const arcUpdate = arcEnter.merge(arcs);
+
+                arcUpdate.select('path')
+                    .attr('d', pieChart.path)
+                    .attr('fill', d => categoryColors(d.data.key))
+                    .on('mouseover', function(event, d) {
+                        tooltip.style('display', 'block')
+                            .html(`${d.data.key}<br/>Sales: $${d.data.value.toLocaleString()}`)
+                            .style('left', (event.pageX + 10) + 'px')
+                            .style('top', (event.pageY - 10) + 'px');
+                    })
+                    .on('mouseout', function() {
+                        tooltip.style('display', 'none');
+                    })
+                    .on('click', function(event, d) {
+                        if (categoryDim.hasCurrentFilter()) {
+                            categoryDim.filterAll();
+                        } else {
+                            categoryDim.filter(d.data.key);
+                        }
+                        updateAll();
+                    });
+
+                arcUpdate.select('text')
+                    .attr('transform', d => `translate(${pieChart.labelArc.centroid(d)})`)
+                    .attr('dy', '0.35em')
+                    .style('text-anchor', 'middle')
+                    .style('font-size', '12px')
+                    .style('fill', 'black')
+                    .style('font-weight', 'bold')
+                    .text(d => d.data.key);
+            }
+
+            function updateBarChart() {
+                const data = monthGroup.all().filter(d => d.value > 0);
+                
+                // Sort months in chronological order
+                const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                data.sort((a, b) => monthOrder.indexOf(a.key) - monthOrder.indexOf(b.key));
+                
+                barChart.x.domain(data.map(d => d.key));
+                barChart.y.domain([0, d3.max(data, d => d.value)]);
+
+                barChart.g.select('.axis--x')
+                    .call(barChart.xAxis);
+
+                barChart.g.select('.axis--y')
+                    .call(barChart.yAxis);
+
+                const bars = barChart.g.selectAll('.bar')
+                    .data(data);
+
+                bars.enter().append('rect')
+                    .attr('class', 'bar')
+                    .merge(bars)
+                    .attr('x', d => barChart.x(d.key))
+                    .attr('y', d => barChart.y(d.value))
+                    .attr('width', barChart.x.bandwidth())
+                    .attr('height', d => barChart.height - barChart.y(d.value))
+                    .attr('fill', d => monthColors(d.key))
+                    .on('mouseover', function(event, d) {
+                        tooltip.style('display', 'block')
+                            .html(`${d.key}<br/>Sales: ${d.value.toLocaleString()}`)
+                            .style('left', (event.pageX + 10) + 'px')
+                            .style('top', (event.pageY - 10) + 'px');
+                    })
+                    .on('mouseout', function() {
+                        tooltip.style('display', 'none');
+                    })
+                    .on('click', function(event, d) {
+                        if (monthDim.hasCurrentFilter()) {
+                            monthDim.filterAll();
+                        } else {
+                            monthDim.filter(d.key);
+                        }
+                        updateAll();
+                    });
+
+                bars.exit().remove();
+            }
+
+            function updateDataTable() {
+                const filteredData = dateDim.top(Infinity);
+                const tbody = d3.select('#table-body');
+                
+                const rows = tbody.selectAll('tr')
+                    .data(filteredData.slice(0, 20)); // Show only first 20 rows
+
+                const rowEnter = rows.enter().append('tr');
+                
+                rowEnter.append('td');
+                rowEnter.append('td');
+                rowEnter.append('td');
+                rowEnter.append('td');
+                rowEnter.append('td');
+
+                rows.exit().remove();
+
+                const rowUpdate = rowEnter.merge(rows);
+
+                rowUpdate.select('td:nth-child(1)')
+                    .text(d => d.date.toLocaleDateString());
+                rowUpdate.select('td:nth-child(2)')
+                    .text(d => d.category);
+                rowUpdate.select('td:nth-child(3)')
+                    .text(d => d.product);
+                rowUpdate.select('td:nth-child(4)')
+                    .text(d => `$${d.sales.toLocaleString()}`);
+                rowUpdate.select('td:nth-child(5)')
+                    .text(d => d.region);
+            }
+
+            function updateStats() {
+                const filteredCount = ndx.groupAll().value();
+                const totalCount = data.length;
+                
+                d3.select('#filtered-count').text(filteredCount);
+                d3.select('#total-count').text(totalCount);
+            }
+
+            function updateAll() {
+                updatePieChart();
+                updateBarChart();
+                updateDataTable();
+                updateStats();
+            }
+
+            // Reset functions (make them global so they can be called from HTML)
+            window.resetAllFilters = function() {
+                categoryDim.filterAll();
+                monthDim.filterAll();
+                updateAll();
+            }
+
+            window.resetCategoryFilter = function() {
+                categoryDim.filterAll();
+                updateAll();
+            }
+
+            window.resetMonthFilter = function() {
+                monthDim.filterAll();
+                updateAll();
+            }
+
+            // Initial render
+            updateAll();
+
+        }).catch(function(error) {
+            console.error("Error loading CSV:", error);
+            alert("Could not load sales_data.csv. Please make sure the file exists in the same directory.");
+        });
+    </script>
+</body>
+</html>

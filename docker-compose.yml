@@ -20,4 +20,19 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - .:/app
+      - shared-data:/app/graph_features_files
     restart: unless-stopped
+  
+  feature_analyzer:
+    build:
+      context: ./feature_analysis/
+      dockerfile: feature_analyzer.Dockerfile
+    ports:
+      - "7860:7860"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - shared-data:/app/graph_features_files
+
+volumes:
+  shared-data:

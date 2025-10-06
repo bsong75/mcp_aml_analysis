@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive EDA Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crossfilter2/1.5.4/crossfilter.min.js"></script>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Interactive EDA Dashboard</h1>
+        </div>
+
+        <div class="file-info" id="file-info">
+            <div style="display: flex; justify-content: space-evenly; align-items: center; gap: 20px;">
+                <div style="flex: 1; text-align: center;">
+                    <strong>Dataset:</strong> <span id="dataset-name">Loading...</span>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <div class="stats-inline">
+                        <span id="filtered-count">0</span> of <span id="total-count">0</span> records selected
+                    </div>
+                </div>
+                <div style="flex: 1; text-align: center;">
+                    <button class="reset-btn-small" onclick="resetAllFilters()">🔄 Reset All Filters</button>
+                </div>
+            </div>
+        </div>
+        
+        <div id="dashboard-content" class="loading">
+            <p>📊 Loading data and generating visualizations...</p>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

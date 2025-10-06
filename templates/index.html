@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Money Laundering Analyzer with MCP Tools</title>
+    <title>ATLAS</title>
     <style>
         :root {
             --primary-bg: #0f0f0f;
@@ -108,6 +108,13 @@
             flex-direction: column;
             gap: 16px;
             scroll-behavior: smooth;
+            transition: all 0.3s ease;
+        }
+
+        .chat-messages.dragover {
+            background: rgba(59, 130, 246, 0.1);
+            border: 2px dashed var(--accent-color);
+            border-radius: 8px;
         }
 
         .message {
@@ -419,6 +426,207 @@
             line-height: 1.4;
         }
 
+        .code-block {
+            background: #1e1e1e;
+            border-radius: 8px;
+            margin: 12px 0;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+
+        .code-header {
+            background: #2d2d2d;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .code-language {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .copy-code {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+
+        .copy-code:hover {
+            background: var(--accent-hover);
+        }
+
+        .code-block pre {
+            margin: 0;
+            padding: 16px;
+            overflow-x: auto;
+            background: #1e1e1e;
+        }
+
+        .code-block code {
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #e6e6e6;
+        }
+
+        .inline-code {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 12px;
+            color: var(--accent-color);
+        }
+
+        .chat-link {
+            color: var(--accent-color);
+            text-decoration: none;
+            border-bottom: 1px solid var(--accent-color);
+            transition: all 0.2s ease;
+            padding: 2px 4px;
+            border-radius: 4px;
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .chat-link:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-bottom-color: var(--accent-hover);
+            color: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .chat-link:visited {
+            color: var(--accent-color);
+        }
+
+        .file-upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 30px 20px;
+            text-align: center;
+            background: var(--chat-bg);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            margin-bottom: 16px;
+        }
+
+        .file-upload-area:hover {
+            border-color: var(--accent-color);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .file-upload-area.dragover {
+            border-color: var(--success-color);
+            background: rgba(16, 185, 129, 0.1);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.7;
+        }
+
+        .upload-text {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .upload-link {
+            color: var(--accent-color);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        .upload-link:hover {
+            color: var(--accent-hover);
+        }
+
+        .upload-status {
+            font-size: 12px;
+            margin-bottom: 12px;
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .upload-status.success {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+
+        .upload-status.error {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--error-color);
+            border: 1px solid var(--error-color);
+        }
+
+        .uploaded-file {
+            background: var(--chat-bg);
+            border: 1px solid var(--success-color);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 16px;
+        }
+
+        .file-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-icon {
+            font-size: 24px;
+            color: var(--success-color);
+        }
+
+        .file-details {
+            flex: 1;
+        }
+
+        .file-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .file-size {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .delete-file {
+            background: var(--error-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .delete-file:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
+
         .clear-chat {
             background: var(--error-color);
             color: white;
@@ -490,13 +698,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛠️ ML TTP Analyzer with MCP Tools</h1>
+            <h1>🛠️ ATLAS </h1>
         </div>
         
         <div class="main-content">
             <div class="chat-container">
                 <div class="chat-header">
-                    <h2>💬 Chat with Gemma3</h2>
+                    <h2>💬 Chat with Atlas</h2>
                     <button class="clear-chat" onclick="clearChat()">Clear Chat</button>
                 </div>
                 
@@ -540,6 +748,14 @@
                         <h3>📋 Quick Commands</h3>
                     </div>
                     <div class="commands-panel-content">
+                        <div class="command-item" onclick="insertCommand('/feature-analysis')">
+                            <code>/feature-analysis</code>
+                            <div class="desc">Quick CSV features analysis</div>
+                        </div>
+                        <div class="command-item" onclick="insertCommand('/eda')">
+                            <code>/eda</code>
+                            <div class="desc">Comprehensive Exploratory Data Analysis</div>
+                        </div>
                         <div class="command-item" onclick="insertCommand('/fanin')">
                             <code>/fanin /fan-in</code>
                             <div class="desc">Run fan-in analysis on transaction graph</div>
@@ -556,15 +772,30 @@
 
                 <div class="tool-section">
                     <div class="tool-section-header">
-                        <h2>🔍 Fan-In Analysis</h2>
+                        <h2>📊 Upload your file</h2>
                     </div>
                     <div class="tool-section-content">
-                        <p>Analyze transaction patterns to identify potential money laundering accounts</p>
-                        <button class="tool-button" onclick="runFanInAnalysis()">
-                            <span>🚀</span>
-                            Run Analysis
-                        </button>
-                        <div id="fanin-result"></div>
+                        <div class="file-upload-area" id="file-upload-area">
+                            <div class="upload-icon">📁</div>
+                            <div class="upload-text">
+                                <strong>Drag & Drop CSV File</strong><br>
+                                or <span class="upload-link" onclick="document.getElementById('file-input').click()">browse files</span>
+                            </div>
+                            <input type="file" id="file-input" accept=".csv" style="display: none;">
+                        </div>
+                        <div class="upload-status" id="upload-status"></div>
+                        <div class="uploaded-file" id="uploaded-file" style="display: none;">
+                            <div class="file-info">
+                                <div class="file-icon">📄</div>
+                                <div class="file-details">
+                                    <div class="file-name" id="file-name"></div>
+                                    <div class="file-size" id="file-size"></div>
+                                </div>
+                                <button class="delete-file" onclick="deleteUploadedFile()" title="Delete file">
+                                    <span>🗑️</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -579,6 +810,8 @@
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             setupEventListeners();
+            setupFileUpload();
+            setupChatAreaDropzone();
             adjustTextareaHeight();
         });
 
@@ -611,6 +844,65 @@
             return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
 
+        function formatContent(content, sender) {
+            if (sender === 'user') {
+                return content; // User messages stay as plain text
+            }
+            
+            // Format AI responses with code blocks and markdown-like formatting
+            let formatted = content;
+            
+            // Convert code blocks (```language \n code \n ```)
+            formatted = formatted.replace(/```(\w+)?\s*\n([\s\S]*?)\n```/g, function(match, language, code) {
+                const lang = language || 'text';
+                return `<div class="code-block">
+                    <div class="code-header">
+                        <span class="code-language">${lang}</span>
+                        <button class="copy-code" onclick="copyCode(this)">Copy</button>
+                    </div>
+                    <pre><code class="language-${lang}">${escapeHtml(code.trim())}</code></pre>
+                </div>`;
+            });
+            
+            // Convert inline code (`code`)
+            formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+            
+            // Convert **bold** text
+            formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convert *italic* text
+            formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            // Convert markdown-style links first
+            formatted = formatted.replace(/\[([^\]]+)\]\((https?:\/\/[^\s\)]+)\)/g, '<a href="$2" target="_blank" class="chat-link">$1</a>');
+            
+            // Convert standalone URLs to clickable links (avoid already processed links)
+            formatted = formatted.replace(/(^|[^">])(https?:\/\/[^\s<>"]+)/g, '$1<a href="$2" target="_blank" class="chat-link">$2</a>');
+            
+            // Convert line breaks to <br>
+            formatted = formatted.replace(/\n/g, '<br>');
+            
+            return formatted;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-block').querySelector('code');
+            const text = codeBlock.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                }, 2000);
+            });
+        }
+
         function addMessage(content, sender = 'user', type = 'text') {
             const messagesContainer = document.getElementById('chat-messages');
             const emptyState = messagesContainer.querySelector('.empty-state');
@@ -626,11 +918,12 @@
             
             const timestamp = formatTimestamp();
             const avatar = sender === 'user' ? 'You' : 'AI';
+            const formattedContent = formatContent(content, sender);
             
             messageDiv.innerHTML = `
                 <div class="message-avatar">${avatar}</div>
                 <div class="message-content">
-                    <div class="message-bubble">${content}</div>
+                    <div class="message-bubble">${formattedContent}</div>
                     <div class="message-timestamp">${timestamp}</div>
                 </div>
             `;
@@ -648,8 +941,28 @@
         }
 
         function showTypingIndicator() {
-            const indicator = document.getElementById('typing-indicator');
+            let indicator = document.getElementById('typing-indicator');
             const messagesContainer = document.getElementById('chat-messages');
+            
+            // If indicator doesn't exist (removed by clearChat), recreate it
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'typing-indicator';
+                indicator.className = 'typing-indicator';
+                indicator.innerHTML = `
+                    <div class="message ai">
+                        <div class="message-avatar">AI</div>
+                        <div class="message-content">
+                            <div class="typing-dots">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            
             messagesContainer.appendChild(indicator);
             indicator.style.display = 'block';
             scrollToBottom();
@@ -657,7 +970,9 @@
 
         function hideTypingIndicator() {
             const indicator = document.getElementById('typing-indicator');
-            indicator.style.display = 'none';
+            if (indicator) {
+                indicator.style.display = 'none';
+            }
         }
 
         function scrollToBottom() {
@@ -703,6 +1018,32 @@
             // Check for commands
             const lowerMessage = message.toLowerCase();
             
+            // Feature analysis command variations
+            if (lowerMessage === '/feature-analysis' || lowerMessage === '/features' ||
+                lowerMessage === 'feature-analysis' || lowerMessage === 'feature analysis' ||
+                lowerMessage === 'analyze features' || lowerMessage.includes('feature analysis') ||
+                lowerMessage.includes('analyze the') || lowerMessage.includes('analyse the') ||
+                (lowerMessage.includes('analyze') && (lowerMessage.includes('file') || lowerMessage.includes('data') || lowerMessage.includes('csv'))) ||
+                (lowerMessage.includes('analyse') && (lowerMessage.includes('file') || lowerMessage.includes('data') || lowerMessage.includes('csv')))) {
+                
+                await runCsvAnalysisFromChat();
+                return;
+            }
+            
+            // EDA command variations
+            if (lowerMessage === '/eda' || lowerMessage === 'eda' || 
+                lowerMessage === 'exploratory data analysis' || lowerMessage === 'comprehensive analysis' ||
+                lowerMessage === 'full eda' || lowerMessage === 'data exploration' ||
+                lowerMessage.includes('exploratory') || lowerMessage.includes('comprehensive eda') ||
+                lowerMessage.includes('do eda') || lowerMessage.includes('do an eda') ||
+                lowerMessage.includes('run eda') || lowerMessage.includes('perform eda') ||
+                lowerMessage.includes('eda with') || lowerMessage.includes('eda on') ||
+                (lowerMessage.includes('eda') && (lowerMessage.includes('file') || lowerMessage.includes('data') || lowerMessage.includes('csv')))) {
+                
+                await runEdaFromChat();
+                return;
+            }
+            
             // Fan-in command variations
             if (lowerMessage === '/fanin' || lowerMessage === '/fan-in' || 
                 lowerMessage === 'fanin' || lowerMessage === 'fan-in' ||
@@ -716,11 +1057,13 @@
             // Help command
             if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage === '?') {
                 const helpContent = `📚 <strong>Available Commands:</strong><br><br>
+                    • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations<br>
+                    • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights<br>
                     • <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph<br>
                     • <strong>/help</strong> - Show this help message<br>
                     • Any other text - Chat with Gemma3 AI model<br><br>
-                    You can also use the buttons in the sidebar for direct access to tools.`;
-                
+                    You can also drag & drop CSV files or use the buttons in the sidebar for direct access to tools.`;
+
                 addMessage(helpContent, 'ai');
                 return;
             }
@@ -753,6 +1096,72 @@
                 }
             } catch (error) {
                 addMessage(`❌ Error: ${error.message}`, 'ai');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runCsvAnalysisFromChat() {
+            setProcessingState(true);
+            
+            try {
+                const response = await fetch('/api/csv-feature-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({csv_filename: null})
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.error) {
+                    addMessage(`❌ CSV Feature Analysis Error: ${data.error}`, 'ai');
+                } else if (data && data.response) {
+                    addMessage(`📊 <strong>CSV Feature Analysis:</strong><br><br>${data.response}`, 'ai');
+                } else {
+                    addMessage(`❌ CSV Feature Analysis Error: Invalid response format`, 'ai');
+                }
+            } catch (error) {
+                console.error('CSV Analysis error:', error);
+                addMessage(`❌ CSV Feature Analysis Error: ${error.message}`, 'ai');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runEdaFromChat() {
+            setProcessingState(true);
+            
+            try {
+                const response = await fetch('/api/exploratory-data-analysis', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({csv_filename: null})
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data && data.error) {
+                    addMessage(`❌ Exploratory Data Analysis Error: ${data.error}`, 'ai');
+                } else if (data && data.response) {
+                    addMessage(`🔍 <strong>Exploratory Data Analysis:</strong><br><br>${data.response}`, 'ai');
+                } else {
+                    addMessage(`❌ Exploratory Data Analysis Error: Invalid response format`, 'ai');
+                }
+            } catch (error) {
+                console.error('EDA error:', error);
+                addMessage(`❌ Exploratory Data Analysis Error: ${error.message}`, 'ai');
             } finally {
                 setProcessingState(false);
             }
@@ -823,6 +1232,202 @@
             input.value = command;
             input.focus();
             adjustTextareaHeight();
+        }
+
+        function setupChatAreaDropzone() {
+            const chatMessages = document.getElementById('chat-messages');
+            const chatContainer = document.querySelector('.chat-container');
+
+            // Prevent default drag behaviors on the entire chat container
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                chatContainer.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            // Highlight drop zone when dragging over
+            ['dragenter', 'dragover'].forEach(eventName => {
+                chatMessages.addEventListener(eventName, function(e) {
+                    chatMessages.classList.add('dragover');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                chatMessages.addEventListener(eventName, function(e) {
+                    chatMessages.classList.remove('dragover');
+                }, false);
+            });
+
+            // Handle dropped files
+            chatMessages.addEventListener('drop', function(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            }, false);
+        }
+
+        function setupFileUpload() {
+            const uploadArea = document.getElementById('file-upload-area');
+            const fileInput = document.getElementById('file-input');
+            const uploadStatus = document.getElementById('upload-status');
+            const analyzeButton = document.getElementById('analyze-button');
+
+            // Drag and drop events
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0]);
+                }
+            });
+
+            // Click to browse
+            uploadArea.addEventListener('click', function() {
+                fileInput.click();
+            });
+
+            // File input change
+            fileInput.addEventListener('change', function(e) {
+                if (e.target.files.length > 0) {
+                    handleFileUpload(e.target.files[0]);
+                }
+            });
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function showUploadedFile(fileInfo) {
+            const uploadedFileDiv = document.getElementById('uploaded-file');
+            const fileName = document.getElementById('file-name');
+            const fileSize = document.getElementById('file-size');
+            
+            fileName.textContent = fileInfo.name;
+            fileSize.textContent = fileInfo.size;
+            uploadedFileDiv.style.display = 'block';
+        }
+
+        function hideUploadedFile() {
+            const uploadedFileDiv = document.getElementById('uploaded-file');
+            uploadedFileDiv.style.display = 'none';
+        }
+
+        async function deleteUploadedFile() {
+            if (!uploadedFile) return;
+            
+            if (confirm(`Are you sure you want to delete "${uploadedFile.name}"?`)) {
+                try {
+                    // Call backend to delete the file
+                    const response = await fetch('/api/delete-csv', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({filename: uploadedFile.name})
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        // Reset UI state
+                        uploadedFile = null;
+                        hideUploadedFile();
+                        
+                        // Clear file input
+                        document.getElementById('file-input').value = '';
+                        
+                        // Show confirmation
+                        addMessage(`🗑️ <strong>File Deleted:</strong> ${result.filename} has been removed.`, 'ai');
+                    } else {
+                        addMessage(`❌ <strong>Delete Error:</strong> ${result.error}`, 'ai');
+                    }
+                } catch (error) {
+                    addMessage(`❌ <strong>Delete Error:</strong> ${error.message}`, 'ai');
+                }
+            }
+        }
+
+        async function handleFileUpload(file) {
+            const uploadStatus = document.getElementById('upload-status');
+            
+            // Validate file type
+            if (!file.name.endsWith('.csv')) {
+                showUploadStatus('Only CSV files are allowed', 'error');
+                return;
+            }
+
+            // Show uploading status
+            showUploadStatus(`Uploading ${file.name}...`, 'loading');
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch('/api/upload-csv', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    // Store uploaded file info
+                    uploadedFile = {
+                        name: result.filename,
+                        size: formatFileSize(file.size),
+                        originalFile: file
+                    };
+                    
+                    // Show file info persistently
+                    showUploadedFile(uploadedFile);
+                    
+                    // Clear upload status
+                    showUploadStatus('', '');
+                    
+                    // Show upload confirmation in chat
+                    addMessage(`📊 <strong>File Uploaded Successfully:</strong><br><br>File: ${result.filename}<br>Size: ${uploadedFile.size}`, 'ai');
+                } else {
+                    showUploadStatus(`❌ ${result.error}`, 'error');
+                }
+            } catch (error) {
+                showUploadStatus(`❌ Upload failed: ${error.message}`, 'error');
+            }
+        }
+
+        function showUploadStatus(message, type) {
+            const uploadStatus = document.getElementById('upload-status');
+            uploadStatus.textContent = message;
+            uploadStatus.className = `upload-status ${type}`;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    uploadStatus.textContent = '';
+                    uploadStatus.className = 'upload-status';
+                }, 5000);
+            }
         }
 
         function clearChat() {
