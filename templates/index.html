@@ -748,17 +748,21 @@
                         <h3>📋 Quick Commands</h3>
                     </div>
                     <div class="commands-panel-content">
-                        <div class="command-item" onclick="insertCommand('/feature-analysis')">
-                            <code>/feature-analysis</code>
-                            <div class="desc">Quick CSV features analysis</div>
-                        </div>
                         <div class="command-item" onclick="insertCommand('/eda')">
                             <code>/eda</code>
                             <div class="desc">Comprehensive Exploratory Data Analysis</div>
                         </div>
+                        <div class="command-item" onclick="insertCommand('/feature-analysis')">
+                            <code>/feature-analysis</code>
+                            <div class="desc">Quick CSV features analysis</div>
+                        </div>
                         <div class="command-item" onclick="insertCommand('/fanin')">
-                            <code>/fanin /fan-in</code>
+                            <code>/fanin</code>
                             <div class="desc">Run fan-in analysis on transaction graph</div>
+                        </div>
+                        <div class="command-item" onclick="insertCommand('/neo4j-vis')">
+                            <code>/neo4j-vis</code>
+                            <div class="desc">Get Neo4j graph summary and browser link</div>
                         </div>
                         <div class="command-item" onclick="insertCommand('/help')">
                             <code>/help</code>
@@ -772,17 +776,10 @@
 
                 <div class="tool-section">
                     <div class="tool-section-header">
-                        <h2>📊 Upload your file</h2>
+                        <h2>📊 Upload your file <span class="upload-link" onclick="document.getElementById('file-input').click()" style="font-size: 0.9rem; margin-left: 10px; cursor: pointer;">browse files</span></h2>
+                        <input type="file" id="file-input" accept=".csv" style="display: none;">
                     </div>
                     <div class="tool-section-content">
-                        <div class="file-upload-area" id="file-upload-area">
-                            <div class="upload-icon">📁</div>
-                            <div class="upload-text">
-                                <strong>Drag & Drop CSV File</strong><br>
-                                or <span class="upload-link" onclick="document.getElementById('file-input').click()">browse files</span>
-                            </div>
-                            <input type="file" id="file-input" accept=".csv" style="display: none;">
-                        </div>
                         <div class="upload-status" id="upload-status"></div>
                         <div class="uploaded-file" id="uploaded-file" style="display: none;">
                             <div class="file-info">
@@ -1045,24 +1042,35 @@
             }
             
             // Fan-in command variations
-            if (lowerMessage === '/fanin' || lowerMessage === '/fan-in' || 
+            if (lowerMessage === '/fanin' || lowerMessage === '/fan-in' ||
                 lowerMessage === 'fanin' || lowerMessage === 'fan-in' ||
                 lowerMessage === 'run fan-in' || lowerMessage === 'run fanin' ||
                 lowerMessage.includes('fan-in analysis') || lowerMessage.includes('fanin analysis')) {
-                
+
                 await runFanInAnalysisFromChat();
                 return;
             }
-            
+
+            // Neo4j visualization command variations
+            if (lowerMessage === '/neo4j-vis' || lowerMessage === '/neo4j' ||
+                lowerMessage === 'neo4j-vis' || lowerMessage === 'neo4j visualization' ||
+                lowerMessage === 'show neo4j' || lowerMessage === 'graph summary' ||
+                lowerMessage.includes('neo4j browser') || lowerMessage.includes('graph database')) {
+
+                await runNeo4jVisualizationFromChat();
+                return;
+            }
+
             // Help command
             if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage === '?') {
                 const helpContent = `📚 <strong>Available Commands:</strong><br><br>
-                    • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations<br>
                     • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights<br>
+                    • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations<br>
                     • <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph<br>
+                    • <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link<br>
                     • <strong>/help</strong> - Show this help message<br>
-                    • Any other text - Chat with Gemma3 AI model<br><br>
-                    You can also drag & drop CSV files or use the buttons in the sidebar for direct access to tools.`;
+                    • Any other text - Chat with ATLAS AI agent<br><br>
+                    You can also drag & drop CSV files directly into the chat area.`;
 
                 addMessage(helpContent, 'ai');
                 return;
@@ -1169,7 +1177,7 @@
 
         async function runFanInAnalysisFromChat() {
             setProcessingState(true);
-            
+
             try {
                 const response = await fetch('/api/fan-in-analysis', {
                     method: 'POST',
@@ -1178,9 +1186,9 @@
                     },
                     body: JSON.stringify({})
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     addMessage(`❌ Fan-in Analysis Error: ${data.error}`, 'ai');
                 } else {
@@ -1188,6 +1196,32 @@
                 }
             } catch (error) {
                 addMessage(`❌ Fan-in Analysis Error: ${error.message}`, 'ai');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runNeo4jVisualizationFromChat() {
+            setProcessingState(true);
+
+            try {
+                const response = await fetch('/api/neo4j-visualization', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`❌ Neo4j Visualization Error: ${data.error}`, 'ai');
+                } else {
+                    addMessage(`${data.response}`, 'ai');
+                }
+            } catch (error) {
+                addMessage(`❌ Neo4j Visualization Error: ${error.message}`, 'ai');
             } finally {
                 setProcessingState(false);
             }
@@ -1273,36 +1307,7 @@
         }
 
         function setupFileUpload() {
-            const uploadArea = document.getElementById('file-upload-area');
             const fileInput = document.getElementById('file-input');
-            const uploadStatus = document.getElementById('upload-status');
-            const analyzeButton = document.getElementById('analyze-button');
-
-            // Drag and drop events
-            uploadArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadArea.classList.add('dragover');
-            });
-
-            uploadArea.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-            });
-
-            uploadArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadArea.classList.remove('dragover');
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    handleFileUpload(files[0]);
-                }
-            });
-
-            // Click to browse
-            uploadArea.addEventListener('click', function() {
-                fileInput.click();
-            });
 
             // File input change
             fileInput.addEventListener('change', function(e) {

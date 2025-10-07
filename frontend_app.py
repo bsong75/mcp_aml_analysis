@@ -102,32 +102,133 @@ class FanInRequest(BaseModel):
     output_file: str = None
 
 # MCP HTTP client configuration
-MCP_SERVER_URL = os.getenv('MCP_SERVER_URL', 'http://127.0.0.1:8000')
+MCP_SERVER_URL = os.getenv('MCP_SERVER_URL', 'http://mcp-app:8000')
 
 async def call_mcp_tool(tool_name: str, arguments: dict = None):
-    """Call an MCP tool via HTTP"""
+    """Call an MCP tool via HTTP POST to FastMCP streamable endpoint"""
     if arguments is None:
         arguments = {}
-        
+
     try:
+        # FastMCP streamable HTTP protocol with session management
         async with httpx.AsyncClient(timeout=300.0) as client:
-            response = await client.post(
-                f"{MCP_SERVER_URL}/tools/{tool_name}/call",
-                json={"arguments": arguments}
+            headers = {
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream"
+            }
+
+            # Step 1: Initialize the session
+            init_request = {
+                "jsonrpc": "2.0",
+                "id": "init-1",
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "frontend", "version": "1.0.0"}
+                }
+            }
+
+            init_response = await client.post(
+                f"{MCP_SERVER_URL}/mcp",
+                json=init_request,
+                headers=headers
             )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if "content" in result and len(result["content"]) > 0:
-                    return {"success": True, "result": result["content"][0].get("text", str(result))}
+
+            if init_response.status_code != 200:
+                return {"success": False, "error": f"Init failed: {init_response.status_code} {init_response.text[:200]}"}
+
+            # Extract session ID from response headers (FastMCP uses 'mcp-session-id')
+            session_id = init_response.headers.get('mcp-session-id')
+
+            if not session_id:
+                return {"success": False, "error": "No session ID received from MCP server"}
+
+            print(f"Got MCP session ID: {session_id}")
+
+            # Add session ID to headers for subsequent requests
+            headers['mcp-session-id'] = session_id
+
+            # Step 1.5: Send initialized notification (required by MCP protocol)
+            initialized_notification = {
+                "jsonrpc": "2.0",
+                "method": "notifications/initialized"
+            }
+
+            await client.post(
+                f"{MCP_SERVER_URL}/mcp",
+                json=initialized_notification,
+                headers=headers
+            )
+
+            # Step 2: Call the tool
+            tool_request = {
+                "jsonrpc": "2.0",
+                "id": "tool-call-1",
+                "method": "tools/call",
+                "params": {
+                    "name": tool_name,
+                    "arguments": arguments
+                }
+            }
+
+            tool_response = await client.post(
+                f"{MCP_SERVER_URL}/mcp",
+                json=tool_request,
+                headers=headers
+            )
+
+            if tool_response.status_code == 200:
+                # Parse SSE response if content-type is text/event-stream
+                response_text = tool_response.text
+
+                # Parse SSE format: "event: message\ndata: {json}\n\n"
+                if 'event: message' in response_text:
+                    # Extract JSON from SSE data field
+                    lines = response_text.split('\n')
+                    for line in lines:
+                        if line.startswith('data: '):
+                            json_str = line[6:]  # Remove 'data: ' prefix
+                            import json
+                            result = json.loads(json_str)
+                            break
+                    else:
+                        result = None
                 else:
-                    return {"success": True, "result": str(result)}
+                    # Try parsing as regular JSON
+                    try:
+                        result = tool_response.json()
+                    except:
+                        return {"success": False, "error": f"Cannot parse response: {response_text[:200]}"}
+
+                if not result:
+                    return {"success": False, "error": f"No data in SSE response: {response_text[:200]}"}
+
+                # Check for JSON-RPC error
+                if "error" in result:
+                    return {"success": False, "error": f"Tool error: {result['error'].get('message', str(result['error']))}"}
+
+                # Extract result
+                if "result" in result:
+                    result_data = result["result"]
+                    # Extract text content
+                    if isinstance(result_data, dict) and "content" in result_data:
+                        content = result_data["content"]
+                        if isinstance(content, list) and len(content) > 0:
+                            text = content[0].get("text", str(content[0]))
+                            return {"success": True, "result": text}
+                    return {"success": True, "result": str(result_data)}
+
+                return {"success": False, "error": f"Unexpected response format: {str(result)[:200]}"}
             else:
-                return {"success": False, "error": f"MCP server error {response.status_code}: {response.text}"}
-                
+                return {"success": False, "error": f"HTTP {tool_response.status_code}: {tool_response.text[:200]}"}
+
     except httpx.ConnectError:
         return {"success": False, "error": f"Cannot connect to MCP server at {MCP_SERVER_URL}"}
     except Exception as e:
+        import traceback
+        error_detail = f"MCP client error: {str(e)}\n{traceback.format_exc()}"
+        print(error_detail)
         return {"success": False, "error": f"MCP client error: {str(e)}"}
 
 @app.get("/", response_class=HTMLResponse)
@@ -145,7 +246,7 @@ async def chat(request: ChatRequest):
         tools_response = await list_tools()
         formatted_response = "🛠️ **Available Tools:**\n\n"
         for tool in tools_response["tools"]:
-            formatted_response += f"• **{tool['name']}**: {tool['description']}\n\n"
+            formatted_response += f"• **{tool['name']}**: {tool['description']}\n"
         return {"response": formatted_response}
     
     # Try MCP first, fall back to direct Ollama
@@ -164,9 +265,20 @@ async def chat(request: ChatRequest):
     try:
         ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         url = f"{ollama_host}/v1/chat/completions"
+
+        system_message = """You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent. You are sophisticated, witty, efficient, and always ready to help. Speak with confidence and a touch of dry humor when appropriate, but remain professional and helpful. You have several MCP tools to offer including:
+- Exploratory Data Analysis (EDA)
+- Feature Analysis
+- Fan-in Analysis for transaction graphs
+
+When users ask for help or tools, guide them to use the appropriate commands."""
+
         payload = {
             "model": request.model,
-            "messages": [{"role": "user", "content": request.message}],
+            "messages": [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": request.message}
+            ],
             "stream": False
         }
         
@@ -191,7 +303,7 @@ async def chat(request: ChatRequest):
 @app.post("/api/fan-in-analysis")
 async def fan_in_analysis_endpoint(request: FanInRequest = None):
     print("🚀 Frontend: Fan-in analysis endpoint called!")
-    
+
     # Try MCP first, fall back to direct function call
     try:
         mcp_result = await call_mcp_tool("fan_in_analysis", {
@@ -200,18 +312,37 @@ async def fan_in_analysis_endpoint(request: FanInRequest = None):
             "neo4j_password": request.neo4j_password if request else None,
             "output_file": request.output_file if request else None
         })
-        
+
         if mcp_result["success"]:
             return {"response": mcp_result["result"], "status": "success"}
     except Exception as e:
         print(f"MCP error: {e}, falling back to direct function...")
-    
+
     # Fallback to direct function call
     try:
         result = standalone_fan_in_analysis()
         return {"response": result, "status": "success"}
     except Exception as e:
         error_msg = f"Fan-in analysis failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
+
+@app.post("/api/neo4j-visualization")
+async def neo4j_visualization_endpoint():
+    print("🚀 Frontend: Neo4j visualization endpoint called!")
+
+    try:
+        mcp_result = await call_mcp_tool("neo4j_visualization", {})
+        print(f"MCP Result: {mcp_result}")
+
+        if mcp_result["success"]:
+            return {"response": mcp_result["result"], "status": "success"}
+        else:
+            error_detail = mcp_result.get("error", "Unknown error")
+            print(f"MCP Error: {error_detail}")
+            return {"error": f"Failed to get Neo4j visualization: {error_detail}", "status": "error"}
+    except Exception as e:
+        error_msg = f"Neo4j visualization failed: {str(e)}"
         print(f"Frontend Error: {error_msg}")
         return {"error": error_msg, "status": "execution_error"}
 
@@ -376,13 +507,6 @@ def direct_exploratory_data_analysis(csv_filename=None):
 
         eda_report += f"""
 
-**🎯 Next Steps Recommendations:**
-• Use feature engineering for highly skewed variables
-• Investigate high correlations for multicollinearity
-• Handle missing data using appropriate imputation
-• Consider outlier treatment for affected variables
-• Explore categorical encoding for ML models
-
 **🔗 Interactive Analysis:**
 • [Open EDA Dashboard](http://localhost:8001/dashboard?file={csv_filename}) - Interactive crossfilter analysis"""
 
@@ -452,9 +576,6 @@ def direct_csv_feature_analysis(csv_filename=None):
 • [Open Gradio Feature Analyzer](http://localhost:7860) - Detailed feature analysis with visualizations
 
 The Gradio analyzer provides:
-• 🏗️ Structural Features Analysis (PageRank, Centrality, etc.)
-• 🏘️ Community Features Analysis
-• 🔍 Pathfinding Features Analysis
 • 📈 Statistical summaries and quality assessments
 • 📦 Distribution plots, boxplots, and correlation heatmaps"""
         
@@ -468,14 +589,14 @@ async def csv_feature_analysis_endpoint(request: dict = {}):
     """Analyze CSV features and provide summary with Gradio link"""
     print("📊 Frontend: CSV feature analysis endpoint called!")
     print(f"Request data: {request}")
-    
+
     csv_filename = request.get('csv_filename') if request else None
-    
+
     # Try MCP first, fall back to direct function call
     try:
-        mcp_result = await call_mcp_tool("csv_feature_analysis", {
-            "csv_filename": csv_filename
-        })
+        # Only include csv_filename in arguments if it's provided
+        args = {"csv_filename": csv_filename} if csv_filename else {}
+        mcp_result = await call_mcp_tool("csv_feature_analysis", args)
         
         if mcp_result["success"]:
             return {"response": mcp_result["result"], "status": "success"}
@@ -568,14 +689,14 @@ async def eda_endpoint(request: dict = {}):
     """Perform comprehensive Exploratory Data Analysis"""
     print("🔍 Frontend: EDA endpoint called!")
     print(f"Request data: {request}")
-    
+
     csv_filename = request.get('csv_filename') if request else None
-    
+
     # Try MCP first, fall back to direct function call
     try:
-        mcp_result = await call_mcp_tool("exploratory_data_analysis", {
-            "csv_filename": csv_filename
-        })
+        # Only include csv_filename in arguments if it's provided
+        args = {"csv_filename": csv_filename} if csv_filename else {}
+        mcp_result = await call_mcp_tool("exploratory_data_analysis", args)
         
         if mcp_result["success"]:
             return {"response": mcp_result["result"], "status": "success"}
@@ -602,7 +723,8 @@ async def list_tools():
             {"name": "csv_feature_analysis", "description": "Analyze CSV features with interactive Gradio visualizations"},
             {"name": "exploratory_data_analysis", "description": "Comprehensive EDA with correlations, outliers, and data quality insights"},
             {"name": "chat_gemma3", "description": "Chat with Gemma3 via Ollama"},
-            {"name": "fan_in_analysis", "description": "Analyze transaction graph for fan-in patterns (money laundering detection)"}
+            {"name": "fan_in_analysis", "description": "Analyze transaction graph for fan-in patterns (money laundering detection)"},
+            {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"}
         ]
     }
 
@@ -674,10 +796,10 @@ async def get_csv_data(filename: str = None):
 
 
 if __name__ == "__main__":
-    print("Starting frontend server on http://localhost:8001")
-    print(f"Neo4j URI: {os.getenv('NEO4J_URI', 'Not set')}")
-    print(f"Ollama Host: {os.getenv('OLLAMA_HOST', 'http://localhost:11434')}")
-    print(f"MCP Server: {MCP_SERVER_URL}")
+    # print("Starting frontend server on http://localhost:8001")
+    # print(f"Neo4j URI: {os.getenv('NEO4J_URI', 'Not set')}")
+    # print(f"Ollama Host: {os.getenv('OLLAMA_HOST', 'http://localhost:11434')}")
+    # print(f"MCP Server: {MCP_SERVER_URL}")
     
     try:
         uvicorn.run(app, host="0.0.0.0", port=8001)

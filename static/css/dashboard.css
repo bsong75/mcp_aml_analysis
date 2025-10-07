@@ -27,7 +27,7 @@ body {
 }
 
 .container {
-    width: 1000px;
+    width: 1200px;
     height: 850px;
     margin: 0 auto;
     background: var(--secondary-bg);

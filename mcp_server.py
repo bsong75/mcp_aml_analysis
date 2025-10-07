@@ -9,13 +9,15 @@ import os
 import pandas as pd
 import numpy as np
 import glob
+from typing import Optional
 from langchain_core.tools import tool
 from langchain_mcp_adapters.tools import to_fastmcp
 from mcp.server.fastmcp import FastMCP
 from fanin_standalone import standalone_fan_in_analysis
+import uvicorn
 
 @tool
-def csv_feature_analysis(csv_filename: str = None) -> str:
+def csv_feature_analysis(csv_filename: Optional[str] = None) -> str:
     """Analyze CSV features and provide summary with Gradio app link
     Args:
         csv_filename: Optional specific CSV file name in graph_features_files folder
@@ -82,7 +84,7 @@ def csv_feature_analysis(csv_filename: str = None) -> str:
         return f"❌ Error analyzing CSV: {str(e)}"
 
 @tool
-def exploratory_data_analysis(csv_filename: str = None) -> str:
+def exploratory_data_analysis(csv_filename: Optional[str] = None) -> str:
     """Perform comprehensive Exploratory Data Analysis on CSV file
     Args:
         csv_filename: Optional specific CSV file name in graph_features_files folder
@@ -242,13 +244,6 @@ def exploratory_data_analysis(csv_filename: str = None) -> str:
 
         eda_report += f"""
 
-**🎯 Next Steps Recommendations:**
-• Use feature engineering for highly skewed variables
-• Investigate high correlations for multicollinearity
-• Handle missing data using appropriate imputation
-• Consider outlier treatment for affected variables
-• Explore categorical encoding for ML models
-
 **🔗 Interactive Analysis:**
 [Open Feature Analyzer](http://localhost:7860) for detailed visualizations and deeper analysis."""
 
@@ -258,7 +253,7 @@ def exploratory_data_analysis(csv_filename: str = None) -> str:
         return f"❌ Error in EDA: {str(e)}"
 
 @tool
-def fan_in_analysis(neo4j_uri: str = None, neo4j_user: str = None, neo4j_password: str = None, output_file: str = None) -> str:
+def fan_in_analysis(neo4j_uri: Optional[str] = None, neo4j_user: Optional[str] = None, neo4j_password: Optional[str] = None, output_file: Optional[str] = None) -> str:
     """Perform fan-in analysis
     Args:
         neo4j info
@@ -280,6 +275,77 @@ def fan_in_analysis(neo4j_uri: str = None, neo4j_user: str = None, neo4j_passwor
     return result
 
 @tool
+def neo4j_visualization() -> str:
+    """Get Neo4j graph database summary and visualization link
+    Returns:
+        String with graph statistics and Neo4j browser link
+    """
+    print("🔍 NEO4J VISUALIZATION TOOL CALLED!")
+
+    try:
+        from neo4j import GraphDatabase
+
+        neo4j_uri = os.getenv('NEO4J_URI', 'bolt://host.docker.internal:7687')
+        neo4j_user = os.getenv('NEO4J_USERNAME', 'neo4j')
+        neo4j_password = os.getenv('NEO4J_PASSWORD', 'password')
+
+        print(f"Connecting to Neo4j at {neo4j_uri}...")
+        driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+        print("Driver created successfully")
+
+        with driver.session() as session:
+            # Get node count
+            node_result = session.run("MATCH (n) RETURN count(n) as count")
+            node_count = node_result.single()['count']
+
+            # Get relationship count
+            rel_result = session.run("MATCH ()-[r]->() RETURN count(r) as count")
+            rel_count = rel_result.single()['count']
+
+            # Get node labels
+            labels_result = session.run("CALL db.labels()")
+            labels = [record['label'] for record in labels_result]
+
+            # Get relationship types
+            types_result = session.run("CALL db.relationshipTypes()")
+            rel_types = [record['relationshipType'] for record in types_result]
+
+        driver.close()
+
+        summary = f"""📊 **Neo4j Graph Database Summary:**
+
+**Statistics:**
+• Total Nodes: {node_count:,}
+• Total Relationships: {rel_count:,}
+
+**Node Labels:**
+{chr(10).join([f'• {label}' for label in labels])}
+
+**Relationship Types:**
+{chr(10).join([f'• {rel_type}' for rel_type in rel_types])}
+
+🔗 **Interactive Visualization:**
+• [Open Neo4j Browser](http://localhost:7474/browser/) - Explore the graph interactively
+
+💡 **Quick Cypher Queries:**
+• View all nodes: `MATCH (n) RETURN n LIMIT 25`
+• View all relationships: `MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 25`
+• Check schema: `CALL db.schema.visualization()`"""
+
+        return summary
+
+    except ImportError as e:
+        error_msg = f"❌ Error: neo4j-driver package not installed. Run: pip install neo4j\nDetails: {str(e)}"
+        print(error_msg)
+        return error_msg
+    except Exception as e:
+        error_msg = f"❌ Error connecting to Neo4j: {str(e)}\n\nMake sure Neo4j is running and credentials are correct."
+        print(f"Neo4j error: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_msg
+
+@tool
 def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str:
     """Chat with Gemma3 via Ollama
     Args:
@@ -296,10 +362,20 @@ def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str
     try:
         ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         url = f"{ollama_host}/v1/chat/completions"
-        
+
+        system_message = """You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent. You are sophisticated, witty, efficient, and always ready to help. Speak with confidence and a touch of dry humor when appropriate, but remain professional and helpful. You have several MCP tools to offer including:
+- Exploratory Data Analysis (EDA)
+- Feature Analysis
+- Fan-in Analysis for transaction graphs
+
+When users ask for help or tools, guide them to use the appropriate commands."""
+
         payload = {
             "model": model,
-            "messages": [{"role": "user", "content": message}],
+            "messages": [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": message}
+            ],
             "stream": False
         }
         
@@ -328,11 +404,12 @@ def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str
 csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
 fanin_tool = to_fastmcp(fan_in_analysis)
+neo4j_tool = to_fastmcp(neo4j_visualization)
 chat_tool = to_fastmcp(chat_gemma3)
 
 # Create MCP server
-mcp = FastMCP(name="Money Laundering Analysis MCP Server", 
-              tools=[csv_analysis_tool, eda_tool, fanin_tool, chat_tool] 
+mcp = FastMCP(name="Money Laundering Analysis MCP Server",
+              tools=[csv_analysis_tool, eda_tool, fanin_tool, neo4j_tool, chat_tool]
             )
 
 if __name__ == "__main__":
@@ -344,9 +421,14 @@ if __name__ == "__main__":
     print("- csv_feature_analysis: Analyze CSV features with Gradio app link")
     print("- exploratory_data_analysis: Comprehensive EDA with insights and recommendations")
     print("- fan_in_analysis: Perform fan-in analysis on Neo4j graph")
+    print("- neo4j_visualization: Get Neo4j graph summary and browser link")
     print("- chat_gemma3: Chat with Gemma3 via Ollama")
     print("🔧 Debug mode enabled - will show which tools are called")
-    print("🌐 MCP Server will be available on http://0.0.0.0:8000")
-    
-    # Use the correct FastMCP run method
-    mcp.run()
+
+    # Get host and port from environment variables
+    host = os.getenv('HOST', '0.0.0.0')
+    port = int(os.getenv('PORT', '8000'))
+    print(f"🌐 MCP Server starting on http://{host}:{port}")
+
+    # Run MCP server using the streamable_http_app with uvicorn to control host/port
+    uvicorn.run(mcp.streamable_http_app, host=host, port=port)

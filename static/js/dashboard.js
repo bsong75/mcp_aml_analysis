@@ -74,13 +74,18 @@ function processData(rawData) {
         
         Object.keys(d).forEach(key => {
             let value = d[key];
-            
+
+            // Trim whitespace from string values
+            if (typeof value === 'string') {
+                value = value.trim();
+            }
+
             // Skip ID columns for analysis
             if (key.toLowerCase().includes('id')) {
                 processed[key] = value;
                 return;
             }
-            
+
             // Try to convert to number
             const numValue = +value;
             if (!isNaN(numValue) && isFinite(numValue)) {
@@ -89,7 +94,7 @@ function processData(rawData) {
                     numericColumns.push(key);
                 }
             } else {
-                processed[key] = String(value || '');
+                processed[key] = String(value || '').trim();
                 if (!categoricalColumns.includes(key)) {
                     categoricalColumns.push(key);
                 }
@@ -136,8 +141,8 @@ function generateDashboardHTML() {
     const barColumn = numericColumns[0] || categoricalColumns[1] || categoricalColumns[0];
 
     let html = `
-        <div class="dashboard">
-            <div class="chart-container left-chart">
+        <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+            <div class="chart-container" style="width: 250px;">
                 <div class="chart-title">
                     Target by Category
                     <button class="reset-btn-small" onclick="resetTargetFilter()">Reset</button>
@@ -145,51 +150,51 @@ function generateDashboardHTML() {
                 <svg id="pie-chart" width="210" height="190"></svg>
             </div>
 
-            <div class="chart-container right-chart">
+            <div class="chart-container" style="flex: 1;">
                 <div class="chart-title">
                     Monthly Import
                     <button class="reset-btn-small" onclick="resetMonthFilter()">Reset</button>
                 </div>
-                <svg id="bar-chart" width="460" height="200"></svg>
+                <div id="bar-chart" style="width: 100%; height: 240px;"></div>
+            </div>
+
+            <div class="chart-container" style="width: 300px;">
+                <div class="chart-title">
+                    Top 5 Countries
+                    <button class="reset-btn-small" onclick="resetCountryFilter()">Reset</button>
+                </div>
+                <div id="country-chart" style="width: 100%; height: 240px;"></div>
             </div>
         </div>
     `;
-    
-    // Add data table
+
+    // Add data table (Plotly container)
     html += `
         <div class="chart-container">
             <div class="chart-title">📋 Filtered Data</div>
-            <div id="data-table-container">
-                <table class="data-table" id="data-table">
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            ${[...numericColumns.slice(0, 3), ...categoricalColumns.slice(0, 2)]
-                                .map(col => `<th>${col}</th>`).join('')}
-                        </tr>
-                    </thead>
-                    <tbody id="table-body"></tbody>
-                </table>
-            </div>
+            <div id="plotly-table" style="width: 100%;"></div>
         </div>
     `;
-    
+
     return html;
 }
 
 function createCharts() {
     const tooltip = d3.select('#tooltip');
-    
+
     // Create pie chart with predefined categories
     charts.pie = createCategoryPieChart(tooltip);
-    
+
     // Create monthly sales bar chart
     charts.bar = createMonthlySalesChart(tooltip);
+
+    // Create top countries chart
+    charts.country = createTopCountriesChart(tooltip);
 }
 
 function createCategoryPieChart(tooltip) {
     const width = 210;  // 250px container - 40px padding (20px each side)
-    const height = 190; // Maximized height to fill available space
+    const height = 200; // Maximized height to fill available space
     const radius = Math.min(width, height) / 2 - 5;
 
     const svg = d3.select('#pie-chart');
@@ -285,165 +290,274 @@ function createCategoryPieChart(tooltip) {
 }
 
 function createMonthlySalesChart(tooltip) {
-    const width = 460;
-    const height = 200;
-    const margin = {top: 10, right: 20, bottom: 30, left: 40};
-
-    const svg = d3.select('#bar-chart');
-    const g = svg.append('g')
-        .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    const x = d3.scaleBand().range([0, innerWidth]).padding(0.1);
-    const y = d3.scaleLinear().range([innerHeight, 0]);
-
-    const xAxis = g.append('g')
-        .attr('class', 'axis axis--x')
-        .attr('transform', `translate(0,${innerHeight})`);
-
-    const yAxis = g.append('g')
-        .attr('class', 'axis axis--y');
-
-    // Color mapping
-    const targetColors = {
-        'TP': '#F44336',
-        'TN': '#4CAF50',
-        'PN': '#FF9800'
-    };
-
     // Create MONTH dimension if it doesn't exist
     if (!dimensions.MONTH) {
-        dimensions.MONTH = ndx.dimension(d => {
-            if (d.MONTH) {
-                const monthNum = parseInt(d.MONTH.replace('x', ''));
-                if (!isNaN(monthNum)) {
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    return months[monthNum - 1] || d.MONTH;
-                }
-            }
-            return 'Unknown';
-        });
+        dimensions.MONTH = ndx.dimension(d => d.MONTH || 'Unknown');
         groups.MONTH = dimensions.MONTH.group().reduceCount();
     }
 
     return {
         update: function() {
-            let data = groups.MONTH.all().filter(d => d.value > 0);
-
+            const allRecords = ndx.allFiltered();
             const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            data.sort((a, b) => monthOrder.indexOf(a.key) - monthOrder.indexOf(b.key));
 
-            // Build map of each row's TARGET_PROXY for coloring
-            const allRecords = dimensions.MONTH.top(Infinity);
-            const monthDominantTarget = {};
-
+            // Count all TARGET_PROXY types per month
+            const monthCounts = {};
             allRecords.forEach(record => {
-                const monthNum = parseInt(record.MONTH?.replace('x', ''));
-                if (!isNaN(monthNum)) {
-                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    const month = months[monthNum - 1];
-
-                    if (!monthDominantTarget[month]) {
-                        monthDominantTarget[month] = {TP: 0, TN: 0, PN: 0};
+                const month = record.MONTH;
+                if (month) {
+                    if (!monthCounts[month]) {
+                        monthCounts[month] = {TP: 0, TN: 0, PN: 0};
                     }
-
                     const target = record.TARGET_PROXY;
-                    if (target && (target === 'TP' || target === 'TN' || target === 'PN')) {
-                        monthDominantTarget[month][target]++;
+                    if (target === 'TP' || target === 'TN' || target === 'PN') {
+                        monthCounts[month][target]++;
                     }
                 }
             });
 
-            // Attach dominant target to each bar
-            data.forEach(d => {
-                const counts = monthDominantTarget[d.key] || {TP: 0, TN: 0, PN: 0};
-                let maxTarget = 'TP';
-                let maxCount = counts.TP;
+            // Sort months and prepare data
+            const months = Object.keys(monthCounts).sort((a, b) =>
+                monthOrder.indexOf(a) - monthOrder.indexOf(b)
+            );
 
-                if (counts.TN > maxCount) {
-                    maxTarget = 'TN';
-                    maxCount = counts.TN;
-                }
-                if (counts.PN > maxCount) {
-                    maxTarget = 'PN';
-                }
+            const tpCounts = months.map(m => monthCounts[m].TP);
+            const tnCounts = months.map(m => monthCounts[m].TN);
+            const pnCounts = months.map(m => monthCounts[m].PN);
 
-                d.dominantTarget = maxTarget;
+            const traceTP = {
+                x: months,
+                y: tpCounts,
+                name: 'TP',
+                type: 'bar',
+                marker: {color: '#F44336'},
+                hovertemplate: '%{x}<br>TP: %{y}<extra></extra>'
+            };
+
+            const traceTN = {
+                x: months,
+                y: tnCounts,
+                name: 'TN',
+                type: 'bar',
+                marker: {color: '#4CAF50'},
+                hovertemplate: '%{x}<br>TN: %{y}<extra></extra>'
+            };
+
+            const tracePN = {
+                x: months,
+                y: pnCounts,
+                name: 'PN',
+                type: 'bar',
+                marker: {color: '#FF9800'},
+                hovertemplate: '%{x}<br>PN: %{y}<extra></extra>'
+            };
+
+            const layout = {
+                height: 240,
+                barmode: 'stack',
+                margin: {t: 30, r: 20, b: 40, l: 40},
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#242424',
+                xaxis: {
+                    title: '',
+                    tickfont: {color: '#a1a1aa', size: 10},
+                    gridcolor: '#374151',
+                    color: '#a1a1aa'
+                },
+                yaxis: {
+                    title: 'Count',
+                    tickfont: {color: '#a1a1aa', size: 10},
+                    gridcolor: '#374151',
+                    color: '#a1a1aa'
+                },
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 1.15,
+                    font: {color: '#a1a1aa', size: 9}
+                }
+            };
+
+            Plotly.newPlot('bar-chart', [traceTP, traceTN, tracePN], layout, {displayModeBar: false});
+
+            const barChart = document.getElementById('bar-chart');
+            barChart.removeAllListeners && barChart.removeAllListeners('plotly_click');
+
+            barChart.on('plotly_click', function(data) {
+                const month = data.points[0].x;
+                if (dimensions.MONTH.hasCurrentFilter()) {
+                    dimensions.MONTH.filterAll();
+                } else {
+                    dimensions.MONTH.filter(month);
+                }
+                updateAll();
+            });
+        }
+    };
+}
+
+function createTopCountriesChart(tooltip) {
+    if (!dimensions.CTRY_CODE) {
+        dimensions.CTRY_CODE = ndx.dimension(d => d.CTRY_CODE || 'Unknown');
+        groups.CTRY_CODE = dimensions.CTRY_CODE.group().reduceCount();
+    }
+
+    return {
+        update: function() {
+            const allRecords = ndx.allFiltered();
+
+            // Count all TARGET_PROXY types per country
+            const countryCounts = {};
+            allRecords.forEach(d => {
+                if (d.CTRY_CODE && d.TARGET_PROXY) {
+                    if (!countryCounts[d.CTRY_CODE]) {
+                        countryCounts[d.CTRY_CODE] = {TP: 0, TN: 0, PN: 0, total: 0};
+                    }
+                    const target = d.TARGET_PROXY;
+                    if (target === 'TP' || target === 'TN' || target === 'PN') {
+                        countryCounts[d.CTRY_CODE][target]++;
+                        countryCounts[d.CTRY_CODE].total++;
+                    }
+                }
             });
 
-            x.domain(data.map(d => d.key));
-            y.domain([0, d3.max(data, d => d.value)]);
+            // Sort by total count and get top 5
+            const sortedCountries = Object.entries(countryCounts)
+                .sort((a, b) => b[1].total - a[1].total)
+                .slice(0, 5);
 
-            xAxis.call(d3.axisBottom(x));
-            yAxis.call(d3.axisLeft(y));
+            const countries = sortedCountries.map(d => d[0]);
+            const tpCounts = sortedCountries.map(d => d[1].TP);
+            const tnCounts = sortedCountries.map(d => d[1].TN);
+            const pnCounts = sortedCountries.map(d => d[1].PN);
 
-            const bars = g.selectAll('.bar').data(data);
+            const traceTP = {
+                x: tpCounts,
+                y: countries,
+                name: 'TP',
+                type: 'bar',
+                orientation: 'h',
+                marker: {color: '#F44336'},
+                hovertemplate: '%{y}<br>TP: %{x}<extra></extra>'
+            };
 
-            bars.enter()
-                .append('rect')
-                .attr('class', 'bar')
-                .merge(bars)
-                .attr('x', d => x(d.key))
-                .attr('y', d => y(d.value))
-                .attr('width', x.bandwidth())
-                .attr('height', d => innerHeight - y(d.value))
-                .attr('fill', d => targetColors[d.dominantTarget])
-                .on('mouseover', function(event, d) {
-                    tooltip.style('display', 'block')
-                        .html(`${d.key}<br/>Imports: ${d.value}`)
-                        .style('left', (event.pageX + 10) + 'px')
-                        .style('top', (event.pageY - 10) + 'px');
-                })
-                .on('mouseout', function() {
-                    tooltip.style('display', 'none');
-                })
-                .on('click', function(event, d) {
-                    if (dimensions.MONTH.hasCurrentFilter()) {
-                        dimensions.MONTH.filterAll();
-                    } else {
-                        dimensions.MONTH.filter(d.key);
-                    }
-                    updateAll();
-                });
+            const traceTN = {
+                x: tnCounts,
+                y: countries,
+                name: 'TN',
+                type: 'bar',
+                orientation: 'h',
+                marker: {color: '#4CAF50'},
+                hovertemplate: '%{y}<br>TN: %{x}<extra></extra>'
+            };
 
-            bars.exit().remove();
+            const tracePN = {
+                x: pnCounts,
+                y: countries,
+                name: 'PN',
+                type: 'bar',
+                orientation: 'h',
+                marker: {color: '#FF9800'},
+                hovertemplate: '%{y}<br>PN: %{x}<extra></extra>'
+            };
+
+            const layout = {
+                width: 300,
+                height: 240,
+                barmode: 'stack',
+                margin: {t: 30, r: 20, b: 40, l: 30},
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#242424',
+                xaxis: {
+                    title: 'Count',
+                    tickfont: {color: '#a1a1aa', size: 10},
+                    gridcolor: '#374151',
+                    color: '#a1a1aa'
+                },
+                yaxis: {
+                    title: '',
+                    tickfont: {color: '#a1a1aa', size: 10},
+                    color: '#a1a1aa',
+                    autorange: 'reversed'
+                },
+                legend: {
+                    orientation: 'h',
+                    x: 0.5,
+                    xanchor: 'center',
+                    y: 1.15,
+                    font: {color: '#a1a1aa', size: 9}
+                }
+            };
+
+            Plotly.newPlot('country-chart', [traceTP, traceTN, tracePN], layout, {displayModeBar: false});
+
+            const countryChart = document.getElementById('country-chart');
+            countryChart.removeAllListeners && countryChart.removeAllListeners('plotly_click');
+
+            countryChart.on('plotly_click', function(data) {
+                const country = data.points[0].y;  // Changed from x to y for horizontal bars
+                if (dimensions.CTRY_CODE.hasCurrentFilter()) {
+                    dimensions.CTRY_CODE.filterAll();
+                } else {
+                    dimensions.CTRY_CODE.filter(country);
+                }
+                updateAll();
+            });
         }
     };
 }
 
 function updateDataTable() {
     const filteredData = Object.values(dimensions)[0]?.top(Infinity) || [];
-    const displayColumns = [...numericColumns.slice(0, 3), ...categoricalColumns.slice(0, 2)];
 
-    const tbody = d3.select('#table-body');
-    const rows = tbody.selectAll('tr').data(filteredData);
+    // Specify the columns we want to display
+    const priorityColumns = ['TARGET_PROXY', 'MONTH', 'CTRY_CODE', 'CTRY_MONTH', 'ENTY_ID'];
+    const displayColumns = priorityColumns.filter(col =>
+        categoricalColumns.includes(col) || numericColumns.includes(col)
+    );
 
-    const rowEnter = rows.enter().append('tr');
-    // Add row number cell plus data cells
-    rowEnter.append('td'); // for row number
-    displayColumns.forEach(() => rowEnter.append('td'));
-
-    rows.exit().remove();
-
-    const rowUpdate = rowEnter.merge(rows);
-
-    // Update row number (first column)
-    rowUpdate.select('td:nth-child(1)')
-        .text((d, i) => i + 1);
-
-    // Update data columns
-    displayColumns.forEach((col, i) => {
-        rowUpdate.select(`td:nth-child(${i + 2})`)
-            .text(d => {
+    // Prepare table data for Plotly
+    const headerValues = ['#', ...displayColumns];
+    const cellValues = [
+        // Row numbers
+        filteredData.map((d, i) => i + 1),
+        // Data columns
+        ...displayColumns.map(col =>
+            filteredData.map(d => {
                 const value = d[col];
                 return typeof value === 'number' ? value.toFixed(3) : value;
-            });
-    });
+            })
+        )
+    ];
+
+    const tableData = [{
+        type: 'table',
+        header: {
+            values: headerValues,
+            align: 'center',
+            line: {width: 1, color: '#374151'},
+            fill: {color: '#242424'},
+            font: {family: "Arial", size: 12, color: "white"}
+        },
+        cells: {
+            values: cellValues,
+            align: 'center',
+            line: {width: 1, color: '#374151'},
+            fill: {color: ['#1a1a1a', 'rgba(255, 255, 255, 0.02)']},
+            font: {family: "Arial", size: 11, color: "#a1a1aa"}
+        }
+    }];
+
+    const layout = {
+        margin: {t: 10, b: 10, l: 10, r: 10},
+        paper_bgcolor: '#1a1a1a',
+        plot_bgcolor: '#1a1a1a',
+        height: 300
+    };
+
+    Plotly.newPlot('plotly-table', tableData, layout, {displayModeBar: false});
 }
 
 function updateStats() {
@@ -478,6 +592,13 @@ window.resetTargetFilter = function() {
 window.resetMonthFilter = function() {
     if (dimensions.MONTH) {
         dimensions.MONTH.filterAll();
+        updateAll();
+    }
+}
+
+window.resetCountryFilter = function() {
+    if (dimensions.CTRY_CODE) {
+        dimensions.CTRY_CODE.filterAll();
         updateAll();
     }
 }
