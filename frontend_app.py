@@ -714,6 +714,31 @@ async def eda_endpoint(request: dict = {}):
             print(f"Frontend Error: {error_msg}")
             return {"error": error_msg, "status": "execution_error"}
 
+@app.post("/api/acronym-lookup")
+async def acronym_lookup_endpoint(request: dict = {}):
+    """Look up CBP Agriculture acronym definition"""
+    print("🔤 Frontend: Acronym lookup endpoint called!")
+    print(f"Request data: {request}")
+
+    acronym = request.get('acronym', '').strip()
+
+    if not acronym:
+        return {"error": "No acronym provided", "status": "invalid_request"}
+
+    try:
+        # Call MCP acronym lookup tool
+        mcp_result = await call_mcp_tool("acronym_lookup", {"acronym": acronym})
+
+        if mcp_result["success"]:
+            return {"response": mcp_result["result"], "status": "success"}
+        else:
+            return {"error": mcp_result.get("error", "Unknown error"), "status": "error"}
+
+    except Exception as e:
+        error_msg = f"Acronym lookup failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
+
 @app.get("/api/tools")
 async def list_tools():
     """List available tools"""
@@ -724,7 +749,8 @@ async def list_tools():
             {"name": "exploratory_data_analysis", "description": "Comprehensive EDA with correlations, outliers, and data quality insights"},
             {"name": "chat_gemma3", "description": "Chat with Gemma3 via Ollama"},
             {"name": "fan_in_analysis", "description": "Analyze transaction graph for fan-in patterns (money laundering detection)"},
-            {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"}
+            {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"},
+            {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"}
         ]
     }
 
@@ -796,11 +822,6 @@ async def get_csv_data(filename: str = None):
 
 
 if __name__ == "__main__":
-    # print("Starting frontend server on http://localhost:8001")
-    # print(f"Neo4j URI: {os.getenv('NEO4J_URI', 'Not set')}")
-    # print(f"Ollama Host: {os.getenv('OLLAMA_HOST', 'http://localhost:11434')}")
-    # print(f"MCP Server: {MCP_SERVER_URL}")
-    
     try:
         uvicorn.run(app, host="0.0.0.0", port=8001)
     except KeyboardInterrupt:

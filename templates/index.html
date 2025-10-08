@@ -30,7 +30,8 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background: linear-gradient(135deg, var(--primary-bg) 0%, #1a1a2e 100%);
+            background: #3b82f6; 
+            /* linear-gradient(135deg, var(--primary-bg) 0%, #1a1a2e 100%); */
             color: var(--text-primary);
             min-height: 100vh;
         }
@@ -174,6 +175,13 @@
             background: var(--ai-bubble);
             color: var(--text-primary);
             border-bottom-left-radius: 4px;
+        }
+
+        /* Tool response styling - green background and outline */
+        .message.ai.tool-response .message-bubble {
+            background: rgba(16, 185, 129, 0.15);
+            border: 2px solid var(--success-color);
+            color: var(--text-primary);
         }
 
         .message-timestamp {
@@ -764,6 +772,10 @@
                             <code>/neo4j-vis</code>
                             <div class="desc">Get Neo4j graph summary and browser link</div>
                         </div>
+                        <div class="command-item" onclick="insertCommand('/acro ')">
+                            <code>/acro [term]</code>
+                            <div class="desc">Look up CBP Agriculture acronym (e.g., /acro AGC)</div>
+                        </div>
                         <div class="command-item" onclick="insertCommand('/help')">
                             <code>/help</code>
                             <div class="desc">Show available commands</div>
@@ -903,7 +915,7 @@
         function addMessage(content, sender = 'user', type = 'text') {
             const messagesContainer = document.getElementById('chat-messages');
             const emptyState = messagesContainer.querySelector('.empty-state');
-            
+
             // Remove empty state if exists
             if (emptyState) {
                 emptyState.remove();
@@ -911,12 +923,14 @@
 
             // Create message element
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            
+            // Add 'tool-response' class if this is a tool message
+            const toolClass = (type === 'tool') ? ' tool-response' : '';
+            messageDiv.className = `message ${sender}${toolClass}`;
+
             const timestamp = formatTimestamp();
             const avatar = sender === 'user' ? 'You' : 'AI';
             const formattedContent = formatContent(content, sender);
-            
+
             messageDiv.innerHTML = `
                 <div class="message-avatar">${avatar}</div>
                 <div class="message-content">
@@ -1061,16 +1075,39 @@
                 return;
             }
 
+            // Acronym lookup command - ONLY explicit commands
+            if (lowerMessage.startsWith('/acronym ') || lowerMessage.startsWith('acronym ') ||
+                lowerMessage.startsWith('/acro ')) {
+
+                // Extract the acronym from the message
+                let acronym = '';
+                if (lowerMessage.startsWith('/acronym ')) {
+                    acronym = message.substring(9).trim();
+                } else if (lowerMessage.startsWith('acronym ')) {
+                    acronym = message.substring(8).trim();
+                } else if (lowerMessage.startsWith('/acro ')) {
+                    acronym = message.substring(6).trim();
+                }
+
+                if (acronym) {
+                    await lookupAcronym(acronym);
+                } else {
+                    addMessage('❌ Please specify an acronym. Example: `/acronym AGC` or `/acro AGC`', 'ai');
+                }
+                return;
+            }
+
             // Help command
             if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage === '?') {
-                const helpContent = `📚 <strong>Available Commands:</strong><br><br>
-                    • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights<br>
-                    • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations<br>
-                    • <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph<br>
-                    • <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link<br>
-                    • <strong>/help</strong> - Show this help message<br>
-                    • Any other text - Chat with ATLAS AI agent<br><br>
-                    You can also drag & drop CSV files directly into the chat area.`;
+                const helpContent = `📚 <strong>Available Commands:</strong><br>
+• <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights
+• <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations
+• <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph
+• <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link
+• <strong>/acro [term]</strong> - Look up CBP Agriculture acronym (e.g., /acro AGC)
+• <strong>/help</strong> - Show this help message
+• Any other text - Chat with ATLAS AI agent<br>
+You can also drag & drop CSV files directly into the chat area.`;
 
                 addMessage(helpContent, 'ai');
                 return;
@@ -1128,15 +1165,15 @@
                 const data = await response.json();
                 
                 if (data && data.error) {
-                    addMessage(`❌ CSV Feature Analysis Error: ${data.error}`, 'ai');
+                    addMessage(`❌ CSV Feature Analysis Error: ${data.error}`, 'ai', 'tool');
                 } else if (data && data.response) {
-                    addMessage(`📊 <strong>CSV Feature Analysis:</strong><br><br>${data.response}`, 'ai');
+                    addMessage(`📊 <strong>CSV Feature Analysis:</strong><br><br>${data.response}`, 'ai', 'tool');
                 } else {
-                    addMessage(`❌ CSV Feature Analysis Error: Invalid response format`, 'ai');
+                    addMessage(`❌ CSV Feature Analysis Error: Invalid response format`, 'ai', 'tool');
                 }
             } catch (error) {
                 console.error('CSV Analysis error:', error);
-                addMessage(`❌ CSV Feature Analysis Error: ${error.message}`, 'ai');
+                addMessage(`❌ CSV Feature Analysis Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }
@@ -1161,15 +1198,15 @@
                 const data = await response.json();
                 
                 if (data && data.error) {
-                    addMessage(`❌ Exploratory Data Analysis Error: ${data.error}`, 'ai');
+                    addMessage(`❌ Exploratory Data Analysis Error: ${data.error}`, 'ai', 'tool');
                 } else if (data && data.response) {
-                    addMessage(`🔍 <strong>Exploratory Data Analysis:</strong><br><br>${data.response}`, 'ai');
+                    addMessage(`🔍 <strong>Exploratory Data Analysis:</strong><br><br>${data.response}`, 'ai', 'tool');
                 } else {
-                    addMessage(`❌ Exploratory Data Analysis Error: Invalid response format`, 'ai');
+                    addMessage(`❌ Exploratory Data Analysis Error: Invalid response format`, 'ai', 'tool');
                 }
             } catch (error) {
                 console.error('EDA error:', error);
-                addMessage(`❌ Exploratory Data Analysis Error: ${error.message}`, 'ai');
+                addMessage(`❌ Exploratory Data Analysis Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }
@@ -1190,12 +1227,12 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    addMessage(`❌ Fan-in Analysis Error: ${data.error}`, 'ai');
+                    addMessage(`❌ Fan-in Analysis Error: ${data.error}`, 'ai', 'tool');
                 } else {
-                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai');
+                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai', 'tool');
                 }
             } catch (error) {
-                addMessage(`❌ Fan-in Analysis Error: ${error.message}`, 'ai');
+                addMessage(`❌ Fan-in Analysis Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }
@@ -1216,12 +1253,12 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    addMessage(`❌ Neo4j Visualization Error: ${data.error}`, 'ai');
+                    addMessage(`❌ Neo4j Visualization Error: ${data.error}`, 'ai', 'tool');
                 } else {
-                    addMessage(`${data.response}`, 'ai');
+                    addMessage(`${data.response}`, 'ai', 'tool');
                 }
             } catch (error) {
-                addMessage(`❌ Neo4j Visualization Error: ${error.message}`, 'ai');
+                addMessage(`❌ Neo4j Visualization Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }
@@ -1432,6 +1469,32 @@
                     uploadStatus.textContent = '';
                     uploadStatus.className = 'upload-status';
                 }, 5000);
+            }
+        }
+
+        async function lookupAcronym(acronym) {
+            setProcessingState(true);
+
+            try {
+                const response = await fetch('/api/acronym-lookup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({acronym: acronym})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`❌ Acronym Lookup Error: ${data.error}`, 'ai', 'tool');
+                } else {
+                    addMessage(`🔤 <strong>Acronym Lookup:</strong><br><br>${data.response}`, 'ai', 'tool');
+                }
+            } catch (error) {
+                addMessage(`❌ Acronym Lookup Error: ${error.message}`, 'ai', 'tool');
+            } finally {
+                setProcessingState(false);
             }
         }
 

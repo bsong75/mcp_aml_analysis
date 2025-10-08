@@ -9,12 +9,30 @@ import os
 import pandas as pd
 import numpy as np
 import glob
+import json
 from typing import Optional
+from difflib import get_close_matches
 from langchain_core.tools import tool
 from langchain_mcp_adapters.tools import to_fastmcp
 from mcp.server.fastmcp import FastMCP
 from fanin_standalone import standalone_fan_in_analysis
 import uvicorn
+
+# Load CBP Acronyms Database
+def load_acronyms():
+    """Load acronyms from JSON file"""
+    acronym_file = os.path.join(os.path.dirname(__file__), 'cbp_acronyms.json')
+    try:
+        with open(acronym_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"⚠️ Warning: {acronym_file} not found. Using empty acronym database.")
+        return {}
+    except json.JSONDecodeError as e:
+        print(f"⚠️ Warning: Error parsing {acronym_file}: {e}")
+        return {}
+
+CBP_ACRONYMS = load_acronyms()
 
 @tool
 def csv_feature_analysis(csv_filename: Optional[str] = None) -> str:
@@ -325,12 +343,7 @@ def neo4j_visualization() -> str:
 {chr(10).join([f'• {rel_type}' for rel_type in rel_types])}
 
 🔗 **Interactive Visualization:**
-• [Open Neo4j Browser](http://localhost:7474/browser/) - Explore the graph interactively
-
-💡 **Quick Cypher Queries:**
-• View all nodes: `MATCH (n) RETURN n LIMIT 25`
-• View all relationships: `MATCH (n)-[r]->(m) RETURN n,r,m LIMIT 25`
-• Check schema: `CALL db.schema.visualization()`"""
+• [Open Neo4j Browser](http://localhost:7474/browser/) - Explore the graph interactively"""
 
         return summary
 
@@ -363,12 +376,21 @@ def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str
         ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         url = f"{ollama_host}/v1/chat/completions"
 
-        system_message = """You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent. You are sophisticated, witty, efficient, and always ready to help. Speak with confidence and a touch of dry humor when appropriate, but remain professional and helpful. You have several MCP tools to offer including:
-- Exploratory Data Analysis (EDA)
-- Feature Analysis
-- Fan-in Analysis for transaction graphs
-
-When users ask for help or tools, guide them to use the appropriate commands."""
+        system_message = """
+        You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent. 
+        You are an expert in all matters related to Customs and Border Patrol.
+        Your expertise is in importing agriculture commodities into the U.S.
+        You reside in Ashburn, VA, but have visibility in all ports of entry.
+        You are sophisticated, witty, efficient, and always ready to help. 
+        Speak with confidence and a touch of dry humor when appropriate, 
+        but remain professional and helpful. 
+        You have several MCP tools to offer including:
+            - Exploratory Data Analysis (EDA)
+            - Graph Feature Analysis
+            - Neo4j GraphDB Analysis
+            - CBP Acronym helper
+        When users ask for help or tools, guide them to use the appropriate commands.
+        """
 
         payload = {
             "model": model,
@@ -400,29 +422,70 @@ When users ask for help or tools, guide them to use the appropriate commands."""
     except Exception as e:
         return f"Error: {str(e)}"
 
+@tool
+def acronym_lookup(acronym: str) -> str:
+    """Look up CBP Agriculture acronyms with fuzzy matching
+    Args:
+        acronym: The acronym to look up (e.g., "AGC", "HSUSA", "RBS")
+    Returns:
+        Definition of the acronym or suggestions if not found
+    """
+    print(f"🔤 ACRONYM LOOKUP TOOL CALLED for: {acronym}")
+
+    # Normalize input
+    acronym_input = acronym.strip().upper()
+
+    if not acronym_input:
+        return "❌ Please provide an acronym to look up."
+
+    # Exact match
+    if acronym_input in CBP_ACRONYMS:
+        definition = CBP_ACRONYMS[acronym_input]
+        return f"✅ **{acronym_input}**: {definition}"
+
+    # Fuzzy matching - find similar acronyms
+    all_acronyms = list(CBP_ACRONYMS.keys())
+    close_matches = get_close_matches(acronym_input, all_acronyms, n=3, cutoff=0.6)
+
+    if close_matches:
+        suggestions = []
+        for match in close_matches:
+            suggestions.append(f"  • **{match}**: {CBP_ACRONYMS[match]}")
+
+        return f"❌ '{acronym}' not found in CBP Agriculture knowledge base.\n\n**Did you mean:**\n" + "\n".join(suggestions)
+    else:
+        # No close matches - show some random examples
+        sample_acronyms = list(CBP_ACRONYMS.items())[:5]
+        examples = [f"  • **{k}**: {v}" for k, v in sample_acronyms]
+
+        return f"❌ '{acronym}' not found in CBP Agriculture knowledge base.\n\n**Available acronyms include:**\n" + "\n".join(examples) + f"\n\n_Total acronyms in database: {len(CBP_ACRONYMS)}_"
+
 # Convert to MCP tools
 csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
 fanin_tool = to_fastmcp(fan_in_analysis)
 neo4j_tool = to_fastmcp(neo4j_visualization)
 chat_tool = to_fastmcp(chat_gemma3)
+acronym_tool = to_fastmcp(acronym_lookup)
 
 # Create MCP server
-mcp = FastMCP(name="Money Laundering Analysis MCP Server",
-              tools=[csv_analysis_tool, eda_tool, fanin_tool, neo4j_tool, chat_tool]
+mcp = FastMCP(name="CBP Agriculture Analysis MCP Server",
+              tools=[csv_analysis_tool, eda_tool, fanin_tool, neo4j_tool, chat_tool, acronym_tool]
             )
 
 if __name__ == "__main__":
-    print("🚀 Starting Money Laundering Analysis MCP Server with HTTP transport")
+    print("🚀 Starting CBP Agriculture Analysis MCP Server with HTTP transport")
     print(f"Neo4j URI: {os.getenv('NEO4J_URI', 'Not set')}")
     print(f"Neo4j User: {os.getenv('NEO4J_USERNAME', 'Not set')}")
     print(f"Ollama host: {os.getenv('OLLAMA_HOST', 'http://localhost:11434')}")
+    print(f"📚 CBP Acronyms loaded: {len(CBP_ACRONYMS)} entries")
     print("\nAvailable tools:")
     print("- csv_feature_analysis: Analyze CSV features with Gradio app link")
     print("- exploratory_data_analysis: Comprehensive EDA with insights and recommendations")
     print("- fan_in_analysis: Perform fan-in analysis on Neo4j graph")
     print("- neo4j_visualization: Get Neo4j graph summary and browser link")
     print("- chat_gemma3: Chat with Gemma3 via Ollama")
+    print("- acronym_lookup: Look up CBP Agriculture acronyms with fuzzy matching")
     print("🔧 Debug mode enabled - will show which tools are called")
 
     # Get host and port from environment variables
