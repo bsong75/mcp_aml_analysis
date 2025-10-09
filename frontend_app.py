@@ -251,7 +251,7 @@ async def chat(request: ChatRequest):
     
     # Try MCP first, fall back to direct Ollama
     try:
-        mcp_result = await call_mcp_tool("chat_gemma3", {
+        mcp_result = await call_mcp_tool("chat_agent", {
             "message": request.message,
             "model": request.model
         })
@@ -747,7 +747,7 @@ async def list_tools():
         "tools": [
             {"name": "csv_feature_analysis", "description": "Analyze CSV features with interactive Gradio visualizations"},
             {"name": "exploratory_data_analysis", "description": "Comprehensive EDA with correlations, outliers, and data quality insights"},
-            {"name": "chat_gemma3", "description": "Chat with Gemma3 via Ollama"},
+            {"name": "chat_agent", "description": "Chat with Gemma3 via Ollama"},
             {"name": "fan_in_analysis", "description": "Analyze transaction graph for fan-in patterns (money laundering detection)"},
             {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"},
             {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"}

@@ -359,7 +359,7 @@ def neo4j_visualization() -> str:
         return error_msg
 
 @tool
-def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str:
+def chat_agent(message: str, model: str = "gemma3", timeout: int = 3000) -> str:
     """Chat with Gemma3 via Ollama
     Args:
         message: The message to send to the AI model
@@ -368,7 +368,7 @@ def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str
     Returns:
         String response from the AI model or error message
     """
-    print("💬 CHAT_GEMMA3 TOOL CALLED!")
+    print("💬 chat_agent TOOL CALLED!")
     print(f"Message: {message}")
     print(f"Model: {model}")
     
@@ -384,6 +384,7 @@ def chat_gemma3(message: str, model: str = "gemma3", timeout: int = 3000) -> str
         You are sophisticated, witty, efficient, and always ready to help. 
         Speak with confidence and a touch of dry humor when appropriate, 
         but remain professional and helpful. 
+        You cannot do EDA on acronyms.
         You have several MCP tools to offer including:
             - Exploratory Data Analysis (EDA)
             - Graph Feature Analysis
@@ -465,7 +466,7 @@ csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
 fanin_tool = to_fastmcp(fan_in_analysis)
 neo4j_tool = to_fastmcp(neo4j_visualization)
-chat_tool = to_fastmcp(chat_gemma3)
+chat_tool = to_fastmcp(chat_agent)
 acronym_tool = to_fastmcp(acronym_lookup)
 
 # Create MCP server
@@ -484,7 +485,7 @@ if __name__ == "__main__":
     print("- exploratory_data_analysis: Comprehensive EDA with insights and recommendations")
     print("- fan_in_analysis: Perform fan-in analysis on Neo4j graph")
     print("- neo4j_visualization: Get Neo4j graph summary and browser link")
-    print("- chat_gemma3: Chat with Gemma3 via Ollama")
+    print("- chat_agent: Chat with Gemma3 via Ollama")
     print("- acronym_lookup: Look up CBP Agriculture acronyms with fuzzy matching")
     print("🔧 Debug mode enabled - will show which tools are called")
 
