@@ -1,6 +1,6 @@
 """
-FastAPI app converted to MCP Server with Fan-In Analysis 
-Now using HTTP transport for Docker compatibility
+CBP Agriculture Analysis MCP Server
+Provides tools for CSV analysis, EDA, Neo4j visualization, chat, and acronym lookup
 """
 
 import math
@@ -15,7 +15,6 @@ from difflib import get_close_matches
 from langchain_core.tools import tool
 from langchain_mcp_adapters.tools import to_fastmcp
 from mcp.server.fastmcp import FastMCP
-from fanin_standalone import standalone_fan_in_analysis
 import uvicorn
 
 # Load CBP Acronyms Database
@@ -263,34 +262,12 @@ def exploratory_data_analysis(csv_filename: Optional[str] = None) -> str:
         eda_report += f"""
 
 **🔗 Interactive Analysis:**
-[Open Feature Analyzer](http://localhost:7860) for detailed visualizations and deeper analysis."""
+[Open EDA Dashboard](http://localhost:8001/dashboard?file={csv_filename}) for detailed visualizations and deeper analysis."""
 
         return eda_report
         
     except Exception as e:
         return f"❌ Error in EDA: {str(e)}"
-
-@tool
-def fan_in_analysis(neo4j_uri: Optional[str] = None, neo4j_user: Optional[str] = None, neo4j_password: Optional[str] = None, output_file: Optional[str] = None) -> str:
-    """Perform fan-in analysis
-    Args:
-        neo4j info
-        output_file: Optional custom output file path for results CSV
-    Returns:
-        String with analysis summary and file location or error message
-    """
-    print("🚀 FAN-IN ANALYSIS TOOL CALLED!")
-    
-    # Call the standalone fan-in analysis function
-    result = standalone_fan_in_analysis(
-        neo4j_uri=neo4j_uri,
-        neo4j_user=neo4j_user,
-        neo4j_password=neo4j_password,
-        output_file=output_file
-    )
-    
-    print("🎉 MCP Fan-in analysis completed successfully!")
-    return result
 
 @tool
 def neo4j_visualization() -> str:
@@ -464,14 +441,13 @@ def acronym_lookup(acronym: str) -> str:
 # Convert to MCP tools
 csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
-fanin_tool = to_fastmcp(fan_in_analysis)
 neo4j_tool = to_fastmcp(neo4j_visualization)
 chat_tool = to_fastmcp(chat_agent)
 acronym_tool = to_fastmcp(acronym_lookup)
 
 # Create MCP server
 mcp = FastMCP(name="CBP Agriculture Analysis MCP Server",
-              tools=[csv_analysis_tool, eda_tool, fanin_tool, neo4j_tool, chat_tool, acronym_tool]
+              tools=[csv_analysis_tool, eda_tool, neo4j_tool, chat_tool, acronym_tool]
             )
 
 if __name__ == "__main__":
@@ -483,7 +459,6 @@ if __name__ == "__main__":
     print("\nAvailable tools:")
     print("- csv_feature_analysis: Analyze CSV features with Gradio app link")
     print("- exploratory_data_analysis: Comprehensive EDA with insights and recommendations")
-    print("- fan_in_analysis: Perform fan-in analysis on Neo4j graph")
     print("- neo4j_visualization: Get Neo4j graph summary and browser link")
     print("- chat_agent: Chat with Gemma3 via Ollama")
     print("- acronym_lookup: Look up CBP Agriculture acronyms with fuzzy matching")

@@ -764,10 +764,6 @@
                             <code>/feature-analysis</code>
                             <div class="desc">Quick CSV features analysis</div>
                         </div>
-                        <div class="command-item" onclick="insertCommand('/fanin')">
-                            <code>/fanin</code>
-                            <div class="desc">Run fan-in analysis on transaction graph</div>
-                        </div>
                         <div class="command-item" onclick="insertCommand('/neo4j-vis')">
                             <code>/neo4j-vis</code>
                             <div class="desc">Get Neo4j graph summary and browser link</div>
@@ -1055,16 +1051,6 @@
                 return;
             }
             
-            // Fan-in command variations
-            if (lowerMessage === '/fanin' || lowerMessage === '/fan-in' ||
-                lowerMessage === 'fanin' || lowerMessage === 'fan-in' ||
-                lowerMessage === 'run fan-in' || lowerMessage === 'run fanin' ||
-                lowerMessage.includes('fan-in analysis') || lowerMessage.includes('fanin analysis')) {
-
-                await runFanInAnalysisFromChat();
-                return;
-            }
-
             // Neo4j visualization command variations
             if (lowerMessage === '/neo4j-vis' || lowerMessage === '/neo4j' ||
                 lowerMessage === 'neo4j-vis' || lowerMessage === 'neo4j visualization' ||
@@ -1102,7 +1088,6 @@
                 const helpContent = `📚 <strong>Available Commands:</strong><br>
 • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights
 • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations
-• <strong>/fanin</strong> or <strong>/fan-in</strong> - Run fan-in analysis on the transaction graph
 • <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link
 • <strong>/acro [term]</strong> - Look up CBP Agriculture acronym (e.g., /acro AGC)
 • <strong>/help</strong> - Show this help message
@@ -1212,32 +1197,6 @@ You can also drag & drop CSV files directly into the chat area.`;
             }
         }
 
-        async function runFanInAnalysisFromChat() {
-            setProcessingState(true);
-
-            try {
-                const response = await fetch('/api/fan-in-analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({})
-                });
-
-                const data = await response.json();
-
-                if (data.error) {
-                    addMessage(`❌ Fan-in Analysis Error: ${data.error}`, 'ai', 'tool');
-                } else {
-                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai', 'tool');
-                }
-            } catch (error) {
-                addMessage(`❌ Fan-in Analysis Error: ${error.message}`, 'ai', 'tool');
-            } finally {
-                setProcessingState(false);
-            }
-        }
-
         async function runNeo4jVisualizationFromChat() {
             setProcessingState(true);
 
@@ -1261,40 +1220,6 @@ You can also drag & drop CSV files directly into the chat area.`;
                 addMessage(`❌ Neo4j Visualization Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
-            }
-        }
-
-        async function runFanInAnalysis() {
-            const result = document.getElementById('fanin-result');
-            const button = event.target;
-            
-            button.disabled = true;
-            button.innerHTML = '<span>🔄</span> Running...';
-            result.innerHTML = '';
-            
-            try {
-                const response = await fetch('/api/fan-in-analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({})
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    result.innerHTML = `<div class="result error">❌ Error: ${data.error}</div>`;
-                } else {
-                    result.innerHTML = `<div class="result success">✅ ${data.response.replace(/\n/g, '<br>')}</div>`;
-                    // Also add to chat
-                    addMessage(`✅ <strong>Fan-in Analysis Complete:</strong><br><br>${data.response}`, 'ai');
-                }
-            } catch (error) {
-                result.innerHTML = `<div class="result error">❌ Error: ${error.message}</div>`;
-            } finally {
-                button.disabled = false;
-                button.innerHTML = '<span>🚀</span> Run Analysis';
             }
         }
 

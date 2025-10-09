@@ -18,7 +18,6 @@ from pathlib import Path
 import uvicorn
 import httpx
 from contextlib import asynccontextmanager
-from fanin_standalone import standalone_fan_in_analysis
 
 # Global variable to hold the MCP server process
 mcp_process = None
@@ -94,12 +93,6 @@ templates = Jinja2Templates(directory="templates")
 class ChatRequest(BaseModel):
     message: str
     model: str = "gemma3"
-
-class FanInRequest(BaseModel):
-    neo4j_uri: str = None
-    neo4j_user: str = None
-    neo4j_password: str = None
-    output_file: str = None
 
 # MCP HTTP client configuration
 MCP_SERVER_URL = os.getenv('MCP_SERVER_URL', 'http://mcp-app:8000')
@@ -266,10 +259,11 @@ async def chat(request: ChatRequest):
         ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         url = f"{ollama_host}/v1/chat/completions"
 
-        system_message = """You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent. You are sophisticated, witty, efficient, and always ready to help. Speak with confidence and a touch of dry humor when appropriate, but remain professional and helpful. You have several MCP tools to offer including:
+        system_message = """You are ATLAS (Agentic Toolkit for Learning and Advanced Solutions), an advanced AI agent specialized in CBP Agriculture. You are sophisticated, witty, efficient, and always ready to help. Speak with confidence and a touch of dry humor when appropriate, but remain professional and helpful. You have several MCP tools to offer including:
 - Exploratory Data Analysis (EDA)
-- Feature Analysis
-- Fan-in Analysis for transaction graphs
+- CSV Feature Analysis
+- Neo4j Graph Visualization
+- CBP Agriculture Acronym Lookup
 
 When users ask for help or tools, guide them to use the appropriate commands."""
 
@@ -299,33 +293,6 @@ When users ask for help or tools, guide them to use the appropriate commands."""
         return {"error": f"Cannot connect to Ollama at {ollama_host}. Make sure Ollama is running and accessible."}
     except Exception as e:
         return {"error": f"Unexpected error: {str(e)}"}
-
-@app.post("/api/fan-in-analysis")
-async def fan_in_analysis_endpoint(request: FanInRequest = None):
-    print("🚀 Frontend: Fan-in analysis endpoint called!")
-
-    # Try MCP first, fall back to direct function call
-    try:
-        mcp_result = await call_mcp_tool("fan_in_analysis", {
-            "neo4j_uri": request.neo4j_uri if request else None,
-            "neo4j_user": request.neo4j_user if request else None,
-            "neo4j_password": request.neo4j_password if request else None,
-            "output_file": request.output_file if request else None
-        })
-
-        if mcp_result["success"]:
-            return {"response": mcp_result["result"], "status": "success"}
-    except Exception as e:
-        print(f"MCP error: {e}, falling back to direct function...")
-
-    # Fallback to direct function call
-    try:
-        result = standalone_fan_in_analysis()
-        return {"response": result, "status": "success"}
-    except Exception as e:
-        error_msg = f"Fan-in analysis failed: {str(e)}"
-        print(f"Frontend Error: {error_msg}")
-        return {"error": error_msg, "status": "execution_error"}
 
 @app.post("/api/neo4j-visualization")
 async def neo4j_visualization_endpoint():
@@ -747,8 +714,7 @@ async def list_tools():
         "tools": [
             {"name": "csv_feature_analysis", "description": "Analyze CSV features with interactive Gradio visualizations"},
             {"name": "exploratory_data_analysis", "description": "Comprehensive EDA with correlations, outliers, and data quality insights"},
-            {"name": "chat_agent", "description": "Chat with Gemma3 via Ollama"},
-            {"name": "fan_in_analysis", "description": "Analyze transaction graph for fan-in patterns (money laundering detection)"},
+            {"name": "chat_gemma3", "description": "Chat with Gemma3 via Ollama"},
             {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"},
             {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"}
         ]
