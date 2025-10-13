@@ -1,0 +1,293 @@
+CBP  Automated  Export System 
+Trade Interface  Requirements  
+ISO Country Codes  
+January 14, 2021  
+Pub # 0875-0419
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+1 ISO Country Codes  
+Use a two-character  Country  Code  as issued  by the International  Standards  Organization  (ISO)  when  required  in a 
+commodity  or transportation  filing.  
+Country/Territory  Name  ISO Country Code  
+Afghanistan  AF 
+Albania  AL 
+Algeria  DZ 
+Andorra  AD 
+Angola  AO 
+Anguilla  AI 
+Antigua and Barbuda  AG 
+Argentina  AR 
+Armenia  AM 
+Aruba  AW 
+Australia  AU 
+Austria  AT 
+Azerbaijan  AZ 
+Azores  PT 
+Bahamas  BS 
+Bahrain  BH 
+Bangladesh  BD 
+Barbados  BB 
+Belgium  BE 
+Belize  BZ 
+Benin  BJ 
+Bermuda  BM 
+Bhutan  BT 
+Bolivia  BO 
+Bosnia -Hercegovina  BA 
+Botswana  BW 
+Brazil  BR 
+British Indian Ocean Territory  IO 
+British Virgin Islands  VG 
+Brunei Darussalam  BN 
+Bulgaria  BG 
+Burkina  BF 
+Burma (Myanmar)  MM 
+Burundi  BI 
+Byelarus  BY 
+Cambodia  KH 
+Cameroon  CM 
+Canada  CA 
+Canary Island  ES 
+Canton and Enderbury Islands  KI 
+Cape Verde  CV 
+Cayman Island  KY 
+Central African Republic  CF 
+Chad  TD 
+Chile  CL 
+China  CN 
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+2  
+  
+ 
+Country/Territory  Name  ISO Country Code  
+Christmas Islands  CX 
+Cocos (Keeling) Island  CC 
+Colombia  CO 
+Comoros  KM 
+Congo (Brazzaville)  CG 
+Cook Islands  CK 
+Costa Rica  CR 
+Croatia  HR 
+Cuba  CU 
+Curacao  CW 
+Cyprus  CY 
+Czech Republic, The  CZ 
+Democratic Republic of Congo  
+(Kinshasa)  CD 
+Denmark  DK 
+Djibouti  DJ 
+Dominica  DM 
+Dominican Republic  DO 
+Ecuador  EC 
+Egypt  EG 
+El Salvador  SV 
+Equatorial Guinea  GQ 
+Eritrea  ER 
+Estonia  EE 
+Eswatini  SZ 
+Ethiopia  ET 
+Falkland Islands (Malvinas)  FK 
+Faroe Islands  FO 
+Fiji FJ 
+Finland  FI 
+France  FR 
+French Guiana  GF 
+French Polynesia  PF 
+French Southern and Antartic Lands  TF 
+Gabon  GA 
+Gambia, The  GM 
+Gaza Strip  GZ 
+Georgia  GE 
+Germany, Federal Republic of  DE 
+Ghana  GH 
+Gibraltar  GI 
+Greece  GR 
+Greenland  GL 
+Grenada  GD 
+Guadeloupe  GP 
+Guatemala  GT 
+Guinea  GN 
+Guinea -Bissau  GW 
+Guyana  GY 
+Haiti HT 
+Heard Island and Mcdonald Islands  HM 
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+3  
+ Country/Territory  Name  ISO Country Code  
+Honduras  HN 
+Hong Kong  HK 
+Hungary  HU 
+Iceland  IS 
+India  IN 
+Indonesia  ID 
+Iran IR 
+Iraq IQ 
+Ireland  IE 
+Israel  IL 
+Italy IT 
+Ivory Coast  CI 
+Jamaica  JM 
+Japan  JP 
+Johnston Atoll  UM 
+Jordan  JO 
+Kampuchea,  Democratic  KH 
+Kazakhstan  KZ 
+Kenya  KE 
+Kiribati  KI 
+Korea, Democratic Peoples Republic  
+of KP 
+Korea, North  KP 
+Korea, Republic of  KR 
+Korea, South  KR 
+Kosovo  KV 
+Kuwait  KW 
+Kyrgyzstan  KG 
+Lao Peoples’ Democratic  Republic  LA 
+Latvia  LV 
+Lebanon  LB 
+Lesotho  LS 
+Liberia  LR 
+Libya  LY 
+Liechtenstein  LI 
+Lithuania  LT 
+Luxembourg  LU 
+Macau  MO 
+Macedonia, North  MK 
+Madagascar  MG 
+Madeira Island  PT 
+Malawi  MW 
+Malaysia  MY 
+Maldives  MV 
+Mali ML 
+Malta  MT 
+Marshall Islands  MH 
+Martinique  MQ 
+Mauritania  MR 
+Mauritius  MU 
+Mayotte  YT 
+ 
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+4  
+  
+ 
+Country/Territory  Name  ISO Country Code  
+Mexico  MX 
+Micronesia, Federal States of  FM 
+Moldova  MD 
+Monaco  MC 
+Mongolia  MN 
+Montenegro  ME 
+Montserrat  MS 
+Morocco  MA 
+Mozambique  MZ 
+Myanmar (see Burma)  
+Namibia  NA 
+Nauru  NR 
+Nepal  NP 
+Netherlands  NL 
+New Caledonia  NC 
+New Zealand  NZ 
+Nicaragua  NI 
+Niger  NE 
+Nigeria  NG 
+Niue NU 
+Norfolk Island  NF 
+North Korea  KP 
+Norway  NO 
+Oman  OM 
+Pakistan  PK 
+Palau  PW 
+Panama  PA 
+Papua New Guinea  PG 
+Paraguay  PY 
+Peru PE 
+Philippines  PH 
+Pitcairn Island  PN 
+Poland  PL 
+Portugal  PT 
+Puerto Rico  PR 
+Qatar  QA 
+Reunion  RE 
+Romania  RO 
+Russia  RU 
+Rwanda  RW 
+St. Christopher  KN 
+St. Helena  SH 
+St. Kitts and Nevis  KN 
+Saint Lucia  LC 
+St. Pierre and Miquelon  PM 
+Saint Vincent and the Grenadines  VC 
+Samoa  WS 
+San Marino  SM 
+Sao Tome and Principe  ST 
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+5  
+  
+ 
+Country/Territory  Name  ISO Country Code  
+Saudi Arabia  SA 
+Senegal  SN 
+Serbia  RS 
+Seychelles  SC 
+Sierra Leone  SL 
+Singapore  SG 
+Sint Maarten  SX 
+Slovakia  SK 
+Slovenia  SI 
+Solomon Islands  SB 
+Somalia  SO 
+South Africa  ZA 
+South Korea  KR 
+South Sudan  SS 
+Spain  ES 
+Spanish Africa  ES 
+Sri Lanka  LK 
+Sudan  SD 
+Suriname  SR 
+Svalvard and Jan Mayen Islands  SJ 
+Sweden  SE 
+Switzerland  CH 
+Syrian Arab Republic  SY 
+Taiwan  TW 
+Tajikistan  TJ 
+Tanzania, United Republic of  TZ 
+Thailand  TH 
+Timor -Leste  TL 
+Togo  TG 
+Tokelau  TK 
+Tonga  TO 
+Trinidad and Tobago  TT 
+Tunisia  TN 
+Turkey  TR 
+Turkmenistan  TM 
+Turks and Caicos Island  TC 
+Tuvalu  TV 
+Uganda  UG 
+Ukraine  UA 
+United Arab Emirates  AE 
+United Kingdom  GB 
+United States  US 
+United States Minor Outlying Islands  UM 
+Uruguay  UY 
+Uzbekistan  UZ 
+Vanuatu  VU 
+Vatican City  VA 
+Venezuela  VE 
+Viet Nam  VN 
+Virgin Islands of the United States  VI 
+AESTIR  Version:  1.0 
+APPENDIX C – ISO Country Codes  
+6  
+  
+Country/Territory  Name  ISO Country Code  
+Wallis and Futuna Islands  WF 
+West Bank  WE 
+Western Samoa  WS 
+Yemen, Republic of  YE 
+Zambia  ZM 
+Zimbabwe  ZW 
+ 
