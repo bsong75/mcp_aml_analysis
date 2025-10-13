@@ -193,7 +193,7 @@ def interactive_review(new_acronyms, existing_acronyms):
 
 
 def main():
-    print("🔤 CBP Agriculture PDF Acronym Extractor")
+    print("🔤 PDF Acronym Extractor")
     print("=" * 80)
 
     # Check for PDF file argument
