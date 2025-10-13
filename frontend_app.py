@@ -528,7 +528,7 @@ def direct_csv_feature_analysis(csv_filename=None):
             top_variable = []
         
         # Create summary
-        summary = f"""✅ **CSV Feature Analysis Complete**
+        summary = f"""✅ **Graph Features Analysis Complete**
 
 **File:** {csv_filename}
 **Dataset Size:** {rows} rows × {cols} columns
@@ -706,6 +706,57 @@ async def acronym_lookup_endpoint(request: dict = {}):
         print(f"Frontend Error: {error_msg}")
         return {"error": error_msg, "status": "execution_error"}
 
+@app.post("/api/acronym-update")
+async def acronym_update_endpoint(request: dict = {}):
+    """Add or update a CBP Agriculture acronym"""
+    print("➕ Frontend: Acronym update endpoint called!")
+    print(f"Request data: {request}")
+
+    acronym = request.get('acronym', '').strip()
+    definition = request.get('definition', '').strip()
+
+    if not acronym or not definition:
+        return {"error": "Both acronym and definition are required", "status": "invalid_request"}
+
+    try:
+        # Call MCP acronym update tool
+        mcp_result = await call_mcp_tool("acronym_update", {"acronym": acronym, "definition": definition})
+
+        if mcp_result["success"]:
+            return {"response": mcp_result["result"], "status": "success"}
+        else:
+            return {"error": mcp_result.get("error", "Unknown error"), "status": "error"}
+
+    except Exception as e:
+        error_msg = f"Acronym update failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
+
+@app.post("/api/acronym-delete")
+async def acronym_delete_endpoint(request: dict = {}):
+    """Delete a CBP Agriculture acronym"""
+    print("🗑️ Frontend: Acronym delete endpoint called!")
+    print(f"Request data: {request}")
+
+    acronym = request.get('acronym', '').strip()
+
+    if not acronym:
+        return {"error": "No acronym provided", "status": "invalid_request"}
+
+    try:
+        # Call MCP acronym delete tool
+        mcp_result = await call_mcp_tool("acronym_delete", {"acronym": acronym})
+
+        if mcp_result["success"]:
+            return {"response": mcp_result["result"], "status": "success"}
+        else:
+            return {"error": mcp_result.get("error", "Unknown error"), "status": "error"}
+
+    except Exception as e:
+        error_msg = f"Acronym delete failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
+
 @app.get("/api/tools")
 async def list_tools():
     """List available tools"""
@@ -716,7 +767,9 @@ async def list_tools():
             {"name": "exploratory_data_analysis", "description": "Comprehensive EDA with correlations, outliers, and data quality insights"},
             {"name": "chat_gemma3", "description": "Chat with Gemma3 via Ollama"},
             {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"},
-            {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"}
+            {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"},
+            {"name": "acronym_update", "description": "Add or update CBP Agriculture acronyms in the database"},
+            {"name": "acronym_delete", "description": "Delete CBP Agriculture acronyms from the database"}
         ]
     }
 

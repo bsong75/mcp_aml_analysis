@@ -770,7 +770,7 @@
                         </div>
                         <div class="command-item" onclick="insertCommand('/acro ')">
                             <code>/acro [term]</code>
-                            <div class="desc">Look up CBP Agriculture acronym (e.g., /acro AGC)</div>
+                            <div class="desc">Look up acronym (e.g., /acro AGC)</div>
                         </div>
                         <div class="command-item" onclick="insertCommand('/help')">
                             <code>/help</code>
@@ -1061,7 +1061,53 @@
                 return;
             }
 
+            // Acronym update command - format: /acro update FDA:Food and Drug Administration
+            // CHECK THIS BEFORE lookup to avoid conflicts
+            if (lowerMessage.startsWith('/acro update ') || lowerMessage.startsWith('/acronym update ')) {
+                let updateStr = '';
+                if (lowerMessage.startsWith('/acro update ')) {
+                    updateStr = message.substring(13).trim();
+                } else if (lowerMessage.startsWith('/acronym update ')) {
+                    updateStr = message.substring(16).trim();
+                }
+
+                // Parse acronym:definition format
+                const colonIndex = updateStr.indexOf(':');
+                if (colonIndex > 0) {
+                    const acronym = updateStr.substring(0, colonIndex).trim();
+                    const definition = updateStr.substring(colonIndex + 1).trim();
+
+                    if (acronym && definition) {
+                        await updateAcronym(acronym, definition);
+                    } else {
+                        addMessage('❌ Invalid format. Use: `/acro update FDA:Food and Drug Administration`', 'ai');
+                    }
+                } else {
+                    addMessage('❌ Invalid format. Use: `/acro update FDA:Food and Drug Administration`', 'ai');
+                }
+                return;
+            }
+
+            // Acronym delete command - format: /acro delete FDA
+            // CHECK THIS BEFORE lookup to avoid conflicts
+            if (lowerMessage.startsWith('/acro delete ') || lowerMessage.startsWith('/acronym delete ')) {
+                let acronym = '';
+                if (lowerMessage.startsWith('/acro delete ')) {
+                    acronym = message.substring(13).trim();
+                } else if (lowerMessage.startsWith('/acronym delete ')) {
+                    acronym = message.substring(16).trim();
+                }
+
+                if (acronym) {
+                    await deleteAcronym(acronym);
+                } else {
+                    addMessage('❌ Please specify an acronym to delete. Example: `/acro delete FDA`', 'ai');
+                }
+                return;
+            }
+
             // Acronym lookup command - ONLY explicit commands
+            // CHECK THIS AFTER update/delete to avoid catching those commands
             if (lowerMessage.startsWith('/acronym ') || lowerMessage.startsWith('acronym ') ||
                 lowerMessage.startsWith('/acro ')) {
 
@@ -1089,9 +1135,11 @@
 • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights
 • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations
 • <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link
-• <strong>/acro [term]</strong> - Look up CBP Agriculture acronym (e.g., /acro AGC)
+• <strong>/acro [term]</strong> - Look up acronym (e.g., /acro AGC)
+&nbsp;&nbsp;&nbsp;&nbsp;◦ <strong>/acro update [term]:[definition]</strong> - Add/update acronym
+&nbsp;&nbsp;&nbsp;&nbsp;◦ <strong>/acro delete [term]</strong> - Delete acronym
 • <strong>/help</strong> - Show this help message
-• Any other text - Chat with ATLAS AI agent<br>
+• Any other text - Chat with ATLAS<br>
 You can also drag & drop CSV files directly into the chat area.`;
 
                 addMessage(helpContent, 'ai');
@@ -1418,6 +1466,58 @@ You can also drag & drop CSV files directly into the chat area.`;
                 }
             } catch (error) {
                 addMessage(`❌ Acronym Lookup Error: ${error.message}`, 'ai', 'tool');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function updateAcronym(acronym, definition) {
+            setProcessingState(true);
+
+            try {
+                const response = await fetch('/api/acronym-update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({acronym: acronym, definition: definition})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`❌ Acronym Update Error: ${data.error}`, 'ai', 'tool');
+                } else {
+                    addMessage(`➕ <strong>Acronym Update:</strong><br><br>${data.response}`, 'ai', 'tool');
+                }
+            } catch (error) {
+                addMessage(`❌ Acronym Update Error: ${error.message}`, 'ai', 'tool');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function deleteAcronym(acronym) {
+            setProcessingState(true);
+
+            try {
+                const response = await fetch('/api/acronym-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({acronym: acronym})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`❌ Acronym Delete Error: ${data.error}`, 'ai', 'tool');
+                } else {
+                    addMessage(`🗑️ <strong>Acronym Delete:</strong><br><br>${data.response}`, 'ai', 'tool');
+                }
+            } catch (error) {
+                addMessage(`❌ Acronym Delete Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }

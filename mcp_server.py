@@ -31,6 +31,19 @@ def load_acronyms():
         print(f"⚠️ Warning: Error parsing {acronym_file}: {e}")
         return {}
 
+def save_acronyms(acronyms_dict):
+    """Save acronyms to JSON file with alphabetical sorting"""
+    acronym_file = os.path.join(os.path.dirname(__file__), 'cbp_acronyms.json')
+    try:
+        # Sort by keys (acronyms) alphabetically
+        sorted_acronyms = dict(sorted(acronyms_dict.items()))
+        with open(acronym_file, 'w', encoding='utf-8') as f:
+            json.dump(sorted_acronyms, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"⚠️ Error saving {acronym_file}: {e}")
+        return False
+
 CBP_ACRONYMS = load_acronyms()
 
 @tool
@@ -438,16 +451,97 @@ def acronym_lookup(acronym: str) -> str:
 
         return f"❌ '{acronym}' not found in CBP Agriculture knowledge base.\n\n**Available acronyms include:**\n" + "\n".join(examples) + f"\n\n_Total acronyms in database: {len(CBP_ACRONYMS)}_"
 
+@tool
+def acronym_update(acronym: str, definition: str) -> str:
+    """Add or update a CBP Agriculture acronym in the database
+    Args:
+        acronym: The acronym to add/update (e.g., "FDA")
+        definition: The full definition (e.g., "Food and Drug Administration")
+    Returns:
+        Success message or error
+    """
+    print(f"➕ ACRONYM UPDATE TOOL CALLED: {acronym} = {definition}")
+
+    # Validate inputs
+    acronym_clean = acronym.strip().upper()
+    definition_clean = definition.strip()
+
+    if not acronym_clean:
+        return "❌ Error: Acronym cannot be empty."
+
+    if not definition_clean:
+        return "❌ Error: Definition cannot be empty."
+
+    # Check if updating existing or adding new
+    is_update = acronym_clean in CBP_ACRONYMS
+    old_definition = CBP_ACRONYMS.get(acronym_clean, None)
+
+    # Update the dictionary
+    CBP_ACRONYMS[acronym_clean] = definition_clean
+
+    # Save to file
+    if save_acronyms(CBP_ACRONYMS):
+        if is_update:
+            return f"✅ **Acronym Updated Successfully:**\n\n**{acronym_clean}**\n• Old: {old_definition}\n• New: {definition_clean}\n\n_Total acronyms: {len(CBP_ACRONYMS)}_"
+        else:
+            return f"✅ **New Acronym Added:**\n\n**{acronym_clean}**: {definition_clean}\n\n_Total acronyms: {len(CBP_ACRONYMS)}_"
+    else:
+        return "❌ Error: Failed to save acronym to database file."
+
+@tool
+def acronym_delete(acronym: str) -> str:
+    """Delete a CBP Agriculture acronym from the database
+    Args:
+        acronym: The acronym to delete (e.g., "FDA")
+    Returns:
+        Success message or error
+    """
+    print(f"🗑️ ACRONYM DELETE TOOL CALLED: {acronym}")
+
+    # Normalize input
+    acronym_clean = acronym.strip().upper()
+
+    if not acronym_clean:
+        return "❌ Error: Acronym cannot be empty."
+
+    # Check if exists
+    if acronym_clean not in CBP_ACRONYMS:
+        # Try fuzzy matching to help user
+        all_acronyms = list(CBP_ACRONYMS.keys())
+        close_matches = get_close_matches(acronym_clean, all_acronyms, n=3, cutoff=0.6)
+
+        if close_matches:
+            suggestions = ", ".join([f"'{m}'" for m in close_matches])
+            return f"❌ '{acronym}' not found in database.\n\n**Did you mean:** {suggestions}?"
+        else:
+            return f"❌ '{acronym}' not found in database."
+
+    # Store definition before deletion
+    deleted_definition = CBP_ACRONYMS[acronym_clean]
+
+    # Delete from dictionary
+    del CBP_ACRONYMS[acronym_clean]
+
+    # Save to file
+    if save_acronyms(CBP_ACRONYMS):
+        return f"✅ **Acronym Deleted:**\n\n**{acronym_clean}**: {deleted_definition}\n\n_Total acronyms: {len(CBP_ACRONYMS)}_"
+    else:
+        # Restore if save failed
+        CBP_ACRONYMS[acronym_clean] = deleted_definition
+        return "❌ Error: Failed to save changes to database file."
+
 # Convert to MCP tools
 csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
 neo4j_tool = to_fastmcp(neo4j_visualization)
 chat_tool = to_fastmcp(chat_agent)
 acronym_tool = to_fastmcp(acronym_lookup)
+acronym_update_tool = to_fastmcp(acronym_update)
+acronym_delete_tool = to_fastmcp(acronym_delete)
 
 # Create MCP server
 mcp = FastMCP(name="CBP Agriculture Analysis MCP Server",
-              tools=[csv_analysis_tool, eda_tool, neo4j_tool, chat_tool, acronym_tool]
+              tools=[csv_analysis_tool, eda_tool, neo4j_tool, chat_tool, acronym_tool, acronym_update_tool, acronym_delete_tool]
             )
 
 if __name__ == "__main__":
@@ -462,6 +556,8 @@ if __name__ == "__main__":
     print("- neo4j_visualization: Get Neo4j graph summary and browser link")
     print("- chat_agent: Chat with Gemma3 via Ollama")
     print("- acronym_lookup: Look up CBP Agriculture acronyms with fuzzy matching")
+    print("- acronym_update: Add or update acronyms in the database")
+    print("- acronym_delete: Delete acronyms from the database")
     print("🔧 Debug mode enabled - will show which tools are called")
 
     # Get host and port from environment variables
