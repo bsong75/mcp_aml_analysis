@@ -74,7 +74,10 @@ def csv_feature_analysis(csv_filename: Optional[str] = None) -> str:
         
         # Load and analyze the CSV
         df = pd.read_csv(csv_file)
-        
+
+        # Clean column names (strip whitespace)
+        df.columns = df.columns.str.strip()
+
         # Get basic info
         rows, cols = df.shape
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
@@ -141,7 +144,10 @@ def exploratory_data_analysis(csv_filename: Optional[str] = None) -> str:
         
         # Load the CSV
         df = pd.read_csv(csv_file)
-        
+
+        # Clean column names (strip whitespace)
+        df.columns = df.columns.str.strip()
+
         # Basic dataset info
         rows, cols = df.shape
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -275,7 +281,7 @@ def exploratory_data_analysis(csv_filename: Optional[str] = None) -> str:
         eda_report += f"""
 
 **🔗 Interactive Analysis:**
-[Open EDA Dashboard](http://localhost:8001/dashboard?file={csv_filename}) for detailed visualizations and deeper analysis."""
+[Open EDA Dashboard](http://localhost:8001/dashboard) for detailed visualizations and deeper analysis (uses most recent CSV)."""
 
         return eda_report
         

@@ -93,6 +93,34 @@ templates = Jinja2Templates(directory="templates")
 class ChatRequest(BaseModel):
     message: str
     model: str = "gemma3"
+    session_id: str = "default"  # Add session ID to track conversations
+
+# Chat history storage (in-memory, per session)
+# Structure: {session_id: [{"role": "user/assistant", "content": "..."}]}
+chat_sessions = {}
+MAX_HISTORY_LENGTH = 10  # Keep last 10 exchanges (20 messages)
+
+def get_chat_history(session_id: str):
+    """Get chat history for a session"""
+    if session_id not in chat_sessions:
+        chat_sessions[session_id] = []
+    return chat_sessions[session_id]
+
+def add_to_chat_history(session_id: str, role: str, content: str):
+    """Add a message to chat history"""
+    if session_id not in chat_sessions:
+        chat_sessions[session_id] = []
+
+    chat_sessions[session_id].append({"role": role, "content": content})
+
+    # Keep only last N exchanges (2N messages)
+    if len(chat_sessions[session_id]) > MAX_HISTORY_LENGTH * 2:
+        chat_sessions[session_id] = chat_sessions[session_id][-(MAX_HISTORY_LENGTH * 2):]
+
+def clear_chat_history(session_id: str):
+    """Clear chat history for a session"""
+    if session_id in chat_sessions:
+        chat_sessions[session_id] = []
 
 # MCP HTTP client configuration
 MCP_SERVER_URL = os.getenv('MCP_SERVER_URL', 'http://mcp-app:8000')
@@ -231,9 +259,9 @@ async def read_root(request: Request):
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
-    """Chat with Gemma3 via MCP or direct Ollama"""
+    """Chat with Gemma3 via MCP or direct Ollama with conversation history"""
     normalized_message = " ".join(request.message.lower().split())
-    
+
     # Handle tools command
     if any(keyword in normalized_message for keyword in ["tool", "tools", "help", "/help"]):
         tools_response = await list_tools()
@@ -241,20 +269,11 @@ async def chat(request: ChatRequest):
         for tool in tools_response["tools"]:
             formatted_response += f"• **{tool['name']}**: {tool['description']}\n"
         return {"response": formatted_response}
-    
-    # Try MCP first, fall back to direct Ollama
-    try:
-        mcp_result = await call_mcp_tool("chat_agent", {
-            "message": request.message,
-            "model": request.model
-        })
-        
-        if mcp_result["success"]:
-            return {"response": mcp_result["result"]}
-    except Exception as e:
-        print(f"MCP error: {e}, falling back to direct Ollama...")
-    
-    # Fallback to direct Ollama connection
+
+    # Get chat history for this session
+    history = get_chat_history(request.session_id)
+
+    # Fallback to direct Ollama connection (with history support)
     try:
         ollama_host = os.getenv('OLLAMA_HOST', 'http://localhost:11434')
         url = f"{ollama_host}/v1/chat/completions"
@@ -265,30 +284,44 @@ async def chat(request: ChatRequest):
 - Neo4j Graph Visualization
 - CBP Agriculture Acronym Lookup
 
-When users ask for help or tools, guide them to use the appropriate commands."""
+When users ask for help or tools, guide them to use the appropriate commands.
+
+IMPORTANT: You have access to the conversation history. When users refer to previous topics (like "the state I asked about", "that port", "those countries"), use the context from earlier messages to provide accurate responses."""
+
+        # Build messages array with history
+        messages = [{"role": "system", "content": system_message}]
+
+        # Add conversation history
+        messages.extend(history)
+
+        # Add current user message
+        messages.append({"role": "user", "content": request.message})
 
         payload = {
             "model": request.model,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": request.message}
-            ],
+            "messages": messages,
             "stream": False
         }
-        
+
         response = requests.post(url, json=payload, timeout=300)
-        
+
         if response.status_code == 200:
             result = response.json()
             if 'choices' in result and len(result['choices']) > 0:
-                return {"response": result['choices'][0]['message']['content']}
+                assistant_response = result['choices'][0]['message']['content']
+
+                # Save to history
+                add_to_chat_history(request.session_id, "user", request.message)
+                add_to_chat_history(request.session_id, "assistant", assistant_response)
+
+                return {"response": assistant_response}
             else:
                 return {"error": f"Unexpected response format: {str(result)[:200]}..."}
         elif response.status_code == 404:
             return {"error": f"Model '{request.model}' not found. Try: ollama pull {request.model}"}
         else:
             return {"error": f"Ollama error {response.status_code}: {response.text[:200]}"}
-            
+
     except requests.exceptions.ConnectionError:
         return {"error": f"Cannot connect to Ollama at {ollama_host}. Make sure Ollama is running and accessible."}
     except Exception as e:
@@ -341,7 +374,10 @@ def direct_exploratory_data_analysis(csv_filename=None):
 
         # Load the CSV
         df = pd.read_csv(csv_file)
-        
+
+        # Clean column names (strip whitespace)
+        df.columns = df.columns.str.strip()
+
         # Basic dataset info
         rows, cols = df.shape
         numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
@@ -475,7 +511,7 @@ def direct_exploratory_data_analysis(csv_filename=None):
         eda_report += f"""
 
 **🔗 Interactive Analysis:**
-• [Open EDA Dashboard](http://localhost:8001/dashboard?file={csv_filename}) - Interactive crossfilter analysis"""
+• [Open EDA Dashboard](http://localhost:8001/dashboard) - Interactive crossfilter analysis (uses most recent CSV)"""
 
         return eda_report
         
@@ -509,7 +545,10 @@ def direct_csv_feature_analysis(csv_filename=None):
 
         # Load and analyze the CSV
         df = pd.read_csv(csv_file)
-        
+
+        # Clean column names (strip whitespace)
+        df.columns = df.columns.str.strip()
+
         # Get basic info
         rows, cols = df.shape
         numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
@@ -619,11 +658,18 @@ async def upload_csv_file(file: UploadFile = File(...)):
         print(f"❌ Upload error: {error_msg}")
         return {"error": error_msg, "status": "upload_error"}
 
+@app.post("/api/clear-chat")
+async def clear_chat(request: dict = {}):
+    """Clear chat history for a session"""
+    session_id = request.get('session_id', 'default')
+    clear_chat_history(session_id)
+    return {"status": "success", "message": f"Chat history cleared for session {session_id}"}
+
 @app.post("/api/delete-csv")
 async def delete_csv_file(request: dict = {}):
     """Delete uploaded CSV file"""
     print(f"🗑️ File delete request: {request}")
-    
+
     filename = request.get('filename')
     if not filename:
         return {"error": "No filename provided", "status": "invalid_request"}
@@ -785,13 +831,13 @@ async def eda_dashboard(request: Request, file: str = None):
 async def get_csv_data(filename: str = None):
     """Get CSV data as JSON for the dashboard"""
     print(f"📊 CSV data request for: {filename}")
-    
+
     try:
         # Define the features folder
         features_folder = "/app/graph_features_files"
-        
-        # If no specific file provided, find most recent CSV file
-        if not filename:
+
+        # If no specific file provided (None or empty string), find most recent CSV file
+        if not filename or filename.strip() == "":
             import glob
             csv_files = glob.glob(f"{features_folder}/*.csv")
             if not csv_files:
@@ -809,7 +855,10 @@ async def get_csv_data(filename: str = None):
         # Load CSV data
         import pandas as pd
         df = pd.read_csv(csv_file)
-        
+
+        # Clean column names (strip whitespace)
+        df.columns = df.columns.str.strip()
+
         # Convert to JSON-serializable format
         data = []
         for _, row in df.iterrows():

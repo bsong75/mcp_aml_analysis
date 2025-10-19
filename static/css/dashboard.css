@@ -20,21 +20,22 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     margin: 0;
-    padding: 20px;
+    padding: 10px;
     background: linear-gradient(135deg, var(--primary-bg) 0%, #1a1a2e 100%);
     color: var(--text-primary);
     min-height: 100vh;
 }
 
 .container {
-    width: 1200px;
-    height: 850px;
+    width: 1500px;
+    height: 800px;
     margin: 0 auto;
     background: var(--secondary-bg);
-    padding: 30px;
+    padding: 15px;
     border-radius: 16px;
     box-shadow: var(--shadow);
     box-sizing: border-box;
+    overflow: hidden;
 }
 
 .header {
@@ -258,6 +259,13 @@ h1 {
 .back-link:hover {
     color: var(--accent-hover);
     transform: translateX(-4px);
+}
+
+#dashboard-content {
+    width: 100%;
+    height: auto;
+    max-height: calc(100% - 100px);
+    overflow: hidden;
 }
 
 .loading {

@@ -811,6 +811,12 @@
         // Chat state
         let chatHistory = [];
         let isProcessing = false;
+        let sessionId = generateSessionId();  // Generate unique session ID
+
+        // Generate a unique session ID for this browser session
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -1152,7 +1158,7 @@ You can also drag & drop CSV files directly into the chat area.`;
         
         async function chat(message) {
             setProcessingState(true);
-            
+
             try {
                 const response = await fetch('/api/chat', {
                     method: 'POST',
@@ -1161,12 +1167,13 @@ You can also drag & drop CSV files directly into the chat area.`;
                     },
                     body: JSON.stringify({
                         message: message,
-                        model: 'gemma3'
+                        model: 'gemma3',
+                        session_id: sessionId  // Include session ID for conversation history
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.error) {
                     addMessage(`❌ Error: ${data.error}`, 'ai');
                 } else {
@@ -1523,8 +1530,9 @@ You can also drag & drop CSV files directly into the chat area.`;
             }
         }
 
-        function clearChat() {
+        async function clearChat() {
             if (confirm('Are you sure you want to clear the chat history?')) {
+                // Clear frontend history
                 chatHistory = [];
                 const messagesContainer = document.getElementById('chat-messages');
                 messagesContainer.innerHTML = `
@@ -1533,6 +1541,22 @@ You can also drag & drop CSV files directly into the chat area.`;
                         <p>Start a conversation with AI Agent or use quick commands</p>
                     </div>
                 `;
+
+                // Clear backend conversation history
+                try {
+                    await fetch('/api/clear-chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            session_id: sessionId
+                        })
+                    });
+                    console.log('Backend chat history cleared');
+                } catch (error) {
+                    console.error('Error clearing backend history:', error);
+                }
             }
         }
     </script>

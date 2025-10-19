@@ -1,11 +1,4 @@
 """
-PDF Country Code Table Extractor for CBP Agriculture
-Extracts country codes from PDF tables and updates cbp_acronyms.json
-
-Usage:
-    python extract_country_codes_from_pdf.py <path_to_pdf_file>
-
-Example:
     python extract_country_codes_from_pdf.py "C:/Documents/country_codes.pdf"
 """
 
@@ -69,7 +62,7 @@ def extract_country_codes(text):
     # Matches: "AF Afghanistan" or "US United States"
     pattern_code_name = r'^([A-Z]{2})\s+(.+)$'
 
-    found_count = 0
+    found_count = 0 
 
     for line in lines:
         line = line.strip()
@@ -279,12 +272,6 @@ def main():
     print("\n✅ Done! Country codes have been added to acronyms database.")
     print(f"   Total entries in database: {len(merged_acronyms)}")
     print(f"   New/updated this session: {len(confirmed_codes)}")
-
-    # Prompt to restart MCP server
-    print("\n🔄 Next steps:")
-    print("   1. Restart the MCP server to load new codes:")
-    print("      docker-compose restart mcp-app")
-    print("   2. Test with: /acro <country_code>")
 
 
 if __name__ == "__main__":

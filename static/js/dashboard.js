@@ -1,6 +1,6 @@
 // Get filename from URL parameter
 const urlParams = new URLSearchParams(window.location.search);
-const filename = urlParams.get('file') || 'sample_features.csv';
+const filename = urlParams.get('file') || null;  // null = use most recent CSV
 
 // Global variables
 let ndx, all;
@@ -22,8 +22,12 @@ const colorSchemes = {
 async function initDashboard() {
     try {
         // Fetch CSV data from backend
-        const response = await fetch(`/api/csv-data?filename=${encodeURIComponent(filename)}`);
-        
+        // If filename is null, don't include it in query (backend will use most recent)
+        const url = filename
+            ? `/api/csv-data?filename=${encodeURIComponent(filename)}`
+            : `/api/csv-data`;
+        const response = await fetch(url);
+
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -142,37 +146,50 @@ function generateDashboardHTML() {
 
     let html = `
         <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-            <div class="chart-container" style="width: 250px;">
-                <div class="chart-title">
-                    Target by Category
-                    <button class="reset-btn-small" onclick="resetTargetFilter()">Reset</button>
+            <!-- Left side: Charts -->
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 15px;">
+                <!-- First row of charts -->
+                <div style="display: flex; gap: 15px;">
+                    <div class="chart-container" style="width: 250px;">
+                        <div class="chart-title" style="margin-bottom: 15px;">
+                            Target by Category
+                            <button class="reset-btn-small" onclick="resetTargetFilter()">Reset</button>
+                        </div>
+                        <svg id="pie-chart" width="210" height="190"></svg>
+                    </div>
+
+                    <div class="chart-container" style="flex: 1;">
+                        <div class="chart-title">
+                            Monthly Imports
+                            <button class="reset-btn-small" onclick="resetMonthFilter()">Reset</button>
+                        </div>
+                        <div id="bar-chart" style="width: 100%; height: 240px;"></div>
+                    </div>
+
+                    <div class="chart-container" style="width: 300px;">
+                        <div class="chart-title">
+                            Top 5 Countries
+                            <button class="reset-btn-small" onclick="resetCountryFilter()">Reset</button>
+                        </div>
+                        <div id="country-chart" style="width: 100%; height: 240px;"></div>
+                    </div>
                 </div>
-                <svg id="pie-chart" width="210" height="190"></svg>
+
+                <!-- Second row: Sankey chart -->
+                <div class="chart-container" style="flex: 1;">
+                    <div class="chart-title">
+                        Sankey Chart
+                        <button class="reset-btn-small" onclick="resetAllFilters()">Reset</button>
+                    </div>
+                    <div id="sankey-chart" style="width: 100%; height: 300px;"></div>
+                </div>
             </div>
 
-            <div class="chart-container" style="flex: 1;">
-                <div class="chart-title">
-                    Monthly Import
-                    <button class="reset-btn-small" onclick="resetMonthFilter()">Reset</button>
-                </div>
-                <div id="bar-chart" style="width: 100%; height: 240px;"></div>
+            <!-- Right side: Data table -->
+            <div class="chart-container" style="width: 450px; max-height: 680px; overflow-y: auto;">
+                <div class="chart-title">📋 Filtered Data</div>
+                <div id="plotly-table" style="width: 100%;"></div>
             </div>
-
-            <div class="chart-container" style="width: 300px;">
-                <div class="chart-title">
-                    Top 5 Countries
-                    <button class="reset-btn-small" onclick="resetCountryFilter()">Reset</button>
-                </div>
-                <div id="country-chart" style="width: 100%; height: 240px;"></div>
-            </div>
-        </div>
-    `;
-
-    // Add data table (Plotly container)
-    html += `
-        <div class="chart-container">
-            <div class="chart-title">📋 Filtered Data</div>
-            <div id="plotly-table" style="width: 100%;"></div>
         </div>
     `;
 
@@ -190,12 +207,15 @@ function createCharts() {
 
     // Create top countries chart
     charts.country = createTopCountriesChart(tooltip);
+
+    // Create Sankey chart
+    charts.sankey = createSankeyChart();
 }
 
 function createCategoryPieChart(tooltip) {
     const width = 210;  // 250px container - 40px padding (20px each side)
     const height = 200; // Maximized height to fill available space
-    const radius = Math.min(width, height) / 2 - 5;
+    const radius = Math.min(width, height) / 2 - 1;
 
     const svg = d3.select('#pie-chart');
     const g = svg.append('g')
@@ -216,19 +236,19 @@ function createCategoryPieChart(tooltip) {
     // Fixed colors for TARGET_PROXY categories
     const categoryColors = d3.scaleOrdinal()
         .domain(['TP', 'TN', 'PN'])
-        .range(['#F44336','#4CAF50','#FF9800']);
+        .range(['#F44336','#4CAF50','#FFEB3B']);
 
-    // Create TARGET_PROXY dimension if it doesn't exist
-    if (!dimensions.TARGET_PROXY) {
-        dimensions.TARGET_PROXY = ndx.dimension(d => d.TARGET_PROXY || 'Unknown');
-        groups.TARGET_PROXY = dimensions.TARGET_PROXY.group().reduceCount();
+    // Create TP_FLAG dimension if it doesn't exist
+    if (!dimensions.TP_FLAG) {
+        dimensions.TP_FLAG = ndx.dimension(d => d.TP_FLAG || 'Unknown');
+        groups.TP_FLAG = dimensions.TP_FLAG.group().reduceCount();
     }
     
     return {
         update: function() {
-            // Get TARGET_PROXY counts from crossfilter
-            const data = groups.TARGET_PROXY.all().filter(d => d.value > 0);
-            console.log('TARGET_PROXY data from crossfilter:', data);
+            // Get TP_FLAG counts from crossfilter
+            const data = groups.TP_FLAG.all().filter(d => d.value > 0);
+            console.log('TP_FLAG data from crossfilter:', data);
 
             this.renderPieChart(data);
         },
@@ -269,10 +289,10 @@ function createCategoryPieChart(tooltip) {
                     tooltip.style('display', 'none');
                 })
                 .on('click', function(event, d) {
-                    if (dimensions.TARGET_PROXY.hasCurrentFilter()) {
-                        dimensions.TARGET_PROXY.filterAll();
+                    if (dimensions.TP_FLAG.hasCurrentFilter()) {
+                        dimensions.TP_FLAG.filterAll();
                     } else {
-                        dimensions.TARGET_PROXY.filter(d.data.key);
+                        dimensions.TP_FLAG.filter(d.data.key);
                     }
                     updateAll();
                 });
@@ -302,7 +322,7 @@ function createMonthlySalesChart(tooltip) {
             const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
                                'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-            // Count all TARGET_PROXY types per month
+            // Count all TP_FLAG types per month
             const monthCounts = {};
             allRecords.forEach(record => {
                 const month = record.MONTH;
@@ -310,7 +330,7 @@ function createMonthlySalesChart(tooltip) {
                     if (!monthCounts[month]) {
                         monthCounts[month] = {TP: 0, TN: 0, PN: 0};
                     }
-                    const target = record.TARGET_PROXY;
+                    const target = record.TP_FLAG;
                     if (target === 'TP' || target === 'TN' || target === 'PN') {
                         monthCounts[month][target]++;
                     }
@@ -349,7 +369,7 @@ function createMonthlySalesChart(tooltip) {
                 y: pnCounts,
                 name: 'PN',
                 type: 'bar',
-                marker: {color: '#FF9800'},
+                marker: {color: '#FFEB3B'},
                 hovertemplate: '%{x}<br>PN: %{y}<extra></extra>'
             };
 
@@ -408,14 +428,14 @@ function createTopCountriesChart(tooltip) {
         update: function() {
             const allRecords = ndx.allFiltered();
 
-            // Count all TARGET_PROXY types per country
+            // Count all TP_FLAG types per country
             const countryCounts = {};
             allRecords.forEach(d => {
-                if (d.CTRY_CODE && d.TARGET_PROXY) {
+                if (d.CTRY_CODE && d.TP_FLAG) {
                     if (!countryCounts[d.CTRY_CODE]) {
                         countryCounts[d.CTRY_CODE] = {TP: 0, TN: 0, PN: 0, total: 0};
                     }
-                    const target = d.TARGET_PROXY;
+                    const target = d.TP_FLAG;
                     if (target === 'TP' || target === 'TN' || target === 'PN') {
                         countryCounts[d.CTRY_CODE][target]++;
                         countryCounts[d.CTRY_CODE].total++;
@@ -459,19 +479,19 @@ function createTopCountriesChart(tooltip) {
                 name: 'PN',
                 type: 'bar',
                 orientation: 'h',
-                marker: {color: '#FF9800'},
+                marker: {color: '#FFEB3B'},
                 hovertemplate: '%{y}<br>PN: %{x}<extra></extra>'
             };
 
             const layout = {
-                width: 300,
+                width: 280,
                 height: 240,
                 barmode: 'stack',
-                margin: {t: 30, r: 20, b: 40, l: 30},
+                margin: {t: 30, r: 10, b: 40, l: 30},
                 paper_bgcolor: '#1a1a1a',
                 plot_bgcolor: '#242424',
                 xaxis: {
-                    title: 'Count',
+                    title: '# of Imports',
                     tickfont: {color: '#a1a1aa', size: 10},
                     gridcolor: '#374151',
                     color: '#a1a1aa'
@@ -487,6 +507,7 @@ function createTopCountriesChart(tooltip) {
                     x: 0.5,
                     xanchor: 'center',
                     y: 1.15,
+                    yanchor: 'bottom',
                     font: {color: '#a1a1aa', size: 9}
                 }
             };
@@ -509,11 +530,152 @@ function createTopCountriesChart(tooltip) {
     };
 }
 
+function createSankeyChart() {
+    return {
+        update: function() {
+            const allRecords = ndx.allFiltered();
+
+            // Build flow data: TP_FLAG -> MONTH -> CTRY_CODE
+            const flowCounts = {};
+
+            allRecords.forEach(d => {
+                if (d.TP_FLAG && d.MONTH && d.CTRY_CODE) {
+                    const key = `${d.TP_FLAG}|${d.MONTH}|${d.CTRY_CODE}`;
+                    flowCounts[key] = (flowCounts[key] || 0) + 1;
+                }
+            });
+
+            // Create unique node labels and indices
+            const nodeLabels = new Set();
+            const tpFlags = new Set();
+            const months = new Set();
+            const countries = new Set();
+
+            Object.keys(flowCounts).forEach(key => {
+                const [tp, month, country] = key.split('|');
+                tpFlags.add(tp);
+                months.add(month);
+                countries.add(country);
+            });
+
+            // Create node arrays in order: TP_FLAG nodes, MONTH nodes, CTRY_CODE nodes
+            const tpFlagNodes = Array.from(tpFlags).sort();
+            const monthNodes = Array.from(months).sort((a, b) => {
+                const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return monthOrder.indexOf(a) - monthOrder.indexOf(b);
+            });
+            const countryNodes = Array.from(countries).sort();
+
+            // Combine all nodes
+            const allNodes = [...tpFlagNodes, ...monthNodes, ...countryNodes];
+
+            // Create node index map
+            const nodeIndex = {};
+            allNodes.forEach((node, i) => {
+                nodeIndex[node] = i;
+            });
+
+            // Create links for TP_FLAG -> MONTH
+            const links = {
+                source: [],
+                target: [],
+                value: [],
+                color: []
+            };
+
+            const tpMonthFlows = {};
+            const monthCountryFlows = {};
+
+            Object.entries(flowCounts).forEach(([key, count]) => {
+                const [tp, month, country] = key.split('|');
+
+                // Aggregate TP_FLAG -> MONTH
+                const tpMonthKey = `${tp}|${month}`;
+                tpMonthFlows[tpMonthKey] = (tpMonthFlows[tpMonthKey] || 0) + count;
+
+                // Aggregate MONTH -> CTRY_CODE
+                const monthCountryKey = `${month}|${country}`;
+                monthCountryFlows[monthCountryKey] = (monthCountryFlows[monthCountryKey] || 0) + count;
+            });
+
+            // Color mapping for TP_FLAG
+            const tpColors = {
+                'TP': 'rgba(244, 67, 54, 0.3)',
+                'TN': 'rgba(76, 175, 80, 0.3)',
+                'PN': 'rgba(255, 152, 0, 0.3)'
+            };
+
+            // Add TP_FLAG -> MONTH links
+            Object.entries(tpMonthFlows).forEach(([key, count]) => {
+                const [tp, month] = key.split('|');
+                links.source.push(nodeIndex[tp]);
+                links.target.push(nodeIndex[month]);
+                links.value.push(count);
+                links.color.push(tpColors[tp] || 'rgba(128, 128, 128, 0.3)');
+            });
+
+            // Add MONTH -> CTRY_CODE links
+            Object.entries(monthCountryFlows).forEach(([key, count]) => {
+                const [month, country] = key.split('|');
+                links.source.push(nodeIndex[month]);
+                links.target.push(nodeIndex[country]);
+                links.value.push(count);
+                links.color.push('rgba(100, 100, 100, 0.2)');
+            });
+
+            // Create Sankey trace
+            const data = [{
+                type: 'sankey',
+                orientation: 'h',
+                node: {
+                    pad: 15,
+                    thickness: 20,
+                    line: {
+                        color: '#374151',
+                        width: 1
+                    },
+                    label: allNodes,
+                    color: allNodes.map(node => {
+                        if (tpFlagNodes.includes(node)) {
+                            return node === 'TP' ? '#F44336' : node === 'TN' ? '#4CAF50' : '#FFEB3B';
+                        } else if (monthNodes.includes(node)) {
+                            return '#3B82F6';
+                        } else {
+                            return '#8B5CF6';
+                        }
+                    }),
+                    customdata: allNodes.map(node => {
+                        if (tpFlagNodes.includes(node)) return 'TP_FLAG';
+                        if (monthNodes.includes(node)) return 'MONTH';
+                        return 'CTRY_CODE';
+                    }),
+                    hovertemplate: '%{label}<br>%{customdata}<br>Total: %{value}<extra></extra>'
+                },
+                link: links
+            }];
+
+            const layout = {
+                height: 300,
+                margin: {t: 10, r: 10, b: 10, l: 10},
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#1a1a1a',
+                font: {
+                    color: '#a1a1aa',
+                    size: 10
+                }
+            };
+
+            Plotly.newPlot('sankey-chart', data, layout, {displayModeBar: false});
+        }
+    };
+}
+
 function updateDataTable() {
     const filteredData = Object.values(dimensions)[0]?.top(Infinity) || [];
 
     // Specify the columns we want to display
-    const priorityColumns = ['TARGET_PROXY', 'MONTH', 'CTRY_CODE', 'CTRY_MONTH', 'ENTY_ID'];
+    const priorityColumns = ['TP_FLAG', 'MONTH', 'CTRY_CODE', 'CTRY_MONTH', 'ENTY_ID'];
     const displayColumns = priorityColumns.filter(col =>
         categoricalColumns.includes(col) || numericColumns.includes(col)
     );
@@ -534,19 +696,22 @@ function updateDataTable() {
 
     const tableData = [{
         type: 'table',
+        columnwidth: [40, ...displayColumns.map(() => 80)], // Smaller column widths
         header: {
             values: headerValues,
             align: 'center',
             line: {width: 1, color: '#374151'},
             fill: {color: '#242424'},
-            font: {family: "Arial", size: 12, color: "white"}
+            font: {family: "Arial", size: 10, color: "white"}
         },
         cells: {
             values: cellValues,
             align: 'center',
             line: {width: 1, color: '#374151'},
-            fill: {color: ['#1a1a1a', 'rgba(255, 255, 255, 0.02)']},
-            font: {family: "Arial", size: 11, color: "#a1a1aa"}
+            fill: {color: [
+                filteredData.map((_, i) => i % 2 === 0 ? '#1a1a1a' : '#2a2a2a')
+            ]},
+            font: {family: "Arial", size: 9, color: "#a1a1aa"}
         }
     }];
 
@@ -554,7 +719,7 @@ function updateDataTable() {
         margin: {t: 10, b: 10, l: 10, r: 10},
         paper_bgcolor: '#1a1a1a',
         plot_bgcolor: '#1a1a1a',
-        height: 300
+        height: 620 // Adjusted to fit within container
     };
 
     Plotly.newPlot('plotly-table', tableData, layout, {displayModeBar: false});
@@ -583,8 +748,8 @@ window.resetAllFilters = function() {
 }
 
 window.resetTargetFilter = function() {
-    if (dimensions.TARGET_PROXY) {
-        dimensions.TARGET_PROXY.filterAll();
+    if (dimensions.TP_FLAG) {
+        dimensions.TP_FLAG.filterAll();
         updateAll();
     }
 }

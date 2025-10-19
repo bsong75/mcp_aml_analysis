@@ -1,11 +1,4 @@
 """
-PDF Acronym Extractor for CBP Agriculture
-Extracts acronyms from PDF documents and updates cbp_acronyms.json
-
-Usage:
-    python extract_acronyms_from_pdf.py <path_to_pdf_file>
-
-Example:
     python extract_acronyms_from_pdf.py "C:/Documents/cbp_manual.pdf"
 """
 
