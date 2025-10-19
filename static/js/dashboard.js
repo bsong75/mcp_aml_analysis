@@ -155,7 +155,9 @@ function generateDashboardHTML() {
                             Target by Category
                             <button class="reset-btn-small" onclick="resetTargetFilter()">Reset</button>
                         </div>
-                        <svg id="pie-chart" width="210" height="190"></svg>
+                        <div style="display: flex; justify-content: center; align-items: center;">
+                            <div id="pie-chart" style="width: 210px; height: 190px;"></div>
+                        </div>
                     </div>
 
                     <div class="chart-container" style="flex: 1;">
@@ -213,98 +215,76 @@ function createCharts() {
 }
 
 function createCategoryPieChart(tooltip) {
-    const width = 210;  // 250px container - 40px padding (20px each side)
-    const height = 200; // Maximized height to fill available space
-    const radius = Math.min(width, height) / 2 - 1;
-
-    const svg = d3.select('#pie-chart');
-    const g = svg.append('g')
-        .attr('transform', `translate(${width/2},${height/2})`);
-
-    const pie = d3.pie()
-        .value(d => d.value)
-        .sort(null);
-
-    const path = d3.arc()
-        .outerRadius(radius - 10)
-        .innerRadius(radius * 0.3);
-
-    const labelArc = d3.arc()
-        .outerRadius(radius - 30)
-        .innerRadius(radius - 30);
-
-    // Fixed colors for TARGET_PROXY categories
-    const categoryColors = d3.scaleOrdinal()
-        .domain(['TP', 'TN', 'PN'])
-        .range(['#F44336','#4CAF50','#FFEB3B']);
-
     // Create TP_FLAG dimension if it doesn't exist
     if (!dimensions.TP_FLAG) {
         dimensions.TP_FLAG = ndx.dimension(d => d.TP_FLAG || 'Unknown');
         groups.TP_FLAG = dimensions.TP_FLAG.group().reduceCount();
     }
-    
+
+    // Color mapping for TP_FLAG categories
+    const colorMap = {
+        'TP': '#F44336',
+        'TN': '#4CAF50',
+        'PN': '#FFEB3B'
+    };
+
     return {
         update: function() {
             // Get TP_FLAG counts from crossfilter
             const data = groups.TP_FLAG.all().filter(d => d.value > 0);
             console.log('TP_FLAG data from crossfilter:', data);
 
-            this.renderPieChart(data);
-        },
-
-        renderPieChart: function(data) {
-            console.log('Rendering pie chart with data:', data);
-
             if (data.length === 0) return;
 
-            const arcs = g.selectAll('.arc')
-                .data(pie(data));
+            const labels = data.map(d => d.key);
+            const values = data.map(d => d.value);
+            const colors = data.map(d => colorMap[d.key] || '#999999');
 
-            const arcEnter = arcs.enter().append('g')
-                .attr('class', 'arc');
-
-            arcEnter.append('path')
-                .attr('class', 'pie-slice');
-
-            arcEnter.append('text')
-                .attr('class', 'pie-label');
-
-            arcs.exit().remove();
-
-            const arcUpdate = arcEnter.merge(arcs);
-
-            arcUpdate.select('path')
-                .attr('d', path)
-                .attr('fill', d => categoryColors(d.data.key))
-                .attr('stroke', 'white')
-                .attr('stroke-width', 2)
-                .on('mouseover', function(event, d) {
-                    tooltip.style('display', 'block')
-                        .html(`${d.data.key}<br/>Count: ${d.data.value.toLocaleString()}`)
-                        .style('left', (event.pageX + 10) + 'px')
-                        .style('top', (event.pageY - 10) + 'px');
-                })
-                .on('mouseout', function() {
-                    tooltip.style('display', 'none');
-                })
-                .on('click', function(event, d) {
-                    if (dimensions.TP_FLAG.hasCurrentFilter()) {
-                        dimensions.TP_FLAG.filterAll();
-                    } else {
-                        dimensions.TP_FLAG.filter(d.data.key);
+            const pieData = [{
+                labels: labels,
+                values: values,
+                type: 'pie',
+                hole: 0.3,  // Donut chart
+                marker: {
+                    colors: colors,
+                    line: {
+                        color: '#ffffff',
+                        width: 2
                     }
-                    updateAll();
-                });
+                },
+                textinfo: 'label',
+                textfont: {
+                    color: '#ffffff',
+                    size: 11,
+                    family: 'Arial'
+                },
+                hovertemplate: '%{label}<br>Count: %{value}<extra></extra>'
+            }];
 
-            arcUpdate.select('text')
-                .attr('transform', d => `translate(${labelArc.centroid(d)})`)
-                .attr('dy', '0.35em')
-                .style('text-anchor', 'middle')
-                .style('font-size', '11px')
-                .style('fill', 'white')
-                .style('font-weight', 'bold')
-                .text(d => d.data.key);
+            const layout = {
+                width: 210,
+                height: 210,
+                margin: {t: 15, r: 5, b: 15, l: 5},
+                paper_bgcolor: '#1a1a1a',
+                plot_bgcolor: '#1a1a1a',
+                showlegend: false
+            };
+
+            Plotly.newPlot('pie-chart', pieData, layout, {displayModeBar: false});
+
+            // Add click handler for filtering
+            const pieChart = document.getElementById('pie-chart');
+            pieChart.removeAllListeners && pieChart.removeAllListeners('plotly_click');
+
+            pieChart.on('plotly_click', function(data) {
+                const category = data.points[0].label;
+                if (dimensions.TP_FLAG.hasCurrentFilter()) {
+                    dimensions.TP_FLAG.filterAll();
+                } else {
+                    dimensions.TP_FLAG.filter(category);
+                }
+                updateAll();
+            });
         }
     };
 }
