@@ -10,6 +10,350 @@ let charts = {};
 let numericColumns = [];
 let categoricalColumns = [];
 let originalData = [];
+let currentDashboard = 'dashboard1';
+
+// Dashboard switching function
+function switchDashboard(dashboardId) {
+    currentDashboard = dashboardId;
+
+    // Update tab active states
+    document.querySelectorAll('.tab-button').forEach(tab => {
+        tab.classList.remove('active');
+    });
+    const tabMap = {'dashboard1': '1', 'dashboard2': '2', 'dashboard3': '3'};
+    document.getElementById(`tab-${tabMap[dashboardId]}`).classList.add('active');
+
+    // Update dashboard title
+    const titleElement = document.getElementById('dashboard-title');
+    const titleMap = {
+        'dashboard1': 'Interactive EDA Dashboard',
+        'dashboard2': 'Dashboard 2',
+        'dashboard3': 'Dashboard 3'
+    };
+    titleElement.textContent = titleMap[dashboardId];
+
+    // Clear and regenerate dashboard content
+    const container = document.getElementById('dashboard-content');
+    container.innerHTML = '';
+
+    if (dashboardId === 'dashboard1') {
+        container.innerHTML = generateDashboardHTML();
+        createCharts();
+        updateAll();
+    } else if (dashboardId === 'dashboard2') {
+        container.innerHTML = generateDashboard2HTML();
+        createDashboard2Charts();
+    } else if (dashboardId === 'dashboard3') {
+        container.innerHTML = generateDashboard3HTML();
+        createDashboard3Charts();
+    }
+}
+
+// Dashboard 2 - Sunburst Chart
+function generateDashboard2HTML() {
+    return `
+        <div style="display: flex; gap: 15px;">
+            <!-- Left: Sunburst Chart -->
+            <div class="chart-container" style="flex: 1;">
+                <div class="chart-title">
+                    Hierarchical View: TP_FLAG → CTRY_CODE → CTRY_MONTH
+                    <button class="reset-btn-small" onclick="resetAllFilters()">Reset</button>
+                </div>
+                <div id="sunburst-chart" style="width: 100%; height: 650px;"></div>
+            </div>
+
+            <!-- Right: Filtered Data Table -->
+            <div class="chart-container" style="width: 450px; max-height: 730px; overflow-y: auto;">
+                <div class="chart-title">📋 Filtered Data</div>
+                <div id="plotly-table-dashboard2" style="width: 100%;"></div>
+            </div>
+        </div>
+    `;
+}
+
+function createDashboard2Charts() {
+    console.log('Creating Dashboard 2 charts, ndx:', ndx);
+    createSunburstChart();
+    updateDataTableDashboard2();
+}
+
+function createSunburstChart() {
+    if (!ndx) {
+        console.error('Crossfilter not initialized yet');
+        return;
+    }
+
+    const allRecords = ndx.allFiltered();
+
+    // Build hierarchical data structure
+    const hierarchy = {
+        name: 'Root',
+        children: []
+    };
+
+    // Group by TP_FLAG -> CTRY_CODE -> CTRY_MONTH
+    const tpFlagGroups = {};
+
+    allRecords.forEach(d => {
+        if (!d.TP_FLAG || !d.CTRY_CODE || !d.CTRY_MONTH) return;
+
+        // TP_FLAG level
+        if (!tpFlagGroups[d.TP_FLAG]) {
+            tpFlagGroups[d.TP_FLAG] = {
+                name: d.TP_FLAG,
+                children: [],
+                countries: {}
+            };
+        }
+
+        // CTRY_CODE level
+        if (!tpFlagGroups[d.TP_FLAG].countries[d.CTRY_CODE]) {
+            tpFlagGroups[d.TP_FLAG].countries[d.CTRY_CODE] = {
+                name: d.CTRY_CODE,
+                children: [],
+                months: {}
+            };
+        }
+
+        // CTRY_MONTH level
+        if (!tpFlagGroups[d.TP_FLAG].countries[d.CTRY_CODE].months[d.CTRY_MONTH]) {
+            tpFlagGroups[d.TP_FLAG].countries[d.CTRY_CODE].months[d.CTRY_MONTH] = {
+                name: d.CTRY_MONTH,
+                value: 0
+            };
+        }
+
+        tpFlagGroups[d.TP_FLAG].countries[d.CTRY_CODE].months[d.CTRY_MONTH].value++;
+    });
+
+    // Convert to Plotly sunburst format
+    Object.values(tpFlagGroups).forEach(tpFlag => {
+        Object.values(tpFlag.countries).forEach(country => {
+            country.children = Object.values(country.months);
+        });
+        tpFlag.children = Object.values(tpFlag.countries).map(c => ({
+            name: c.name,
+            children: c.children
+        }));
+        hierarchy.children.push({
+            name: tpFlag.name,
+            children: tpFlag.children
+        });
+    });
+
+    // Color mapping
+    const colorMap = {
+        'TP': '#F44336',
+        'TN': '#4CAF50',
+        'PN': '#FFEB3B'
+    };
+
+    // Flatten hierarchy for Plotly
+    const labels = ['All'];
+    const parents = [''];
+    const values = [allRecords.length];
+    const colors = ['#1a1a1a'];
+    const text = ['All'];  // Display text (actual names)
+
+    function addNode(node, parent, level = 0) {
+        // Make labels unique by prepending parent for non-TP_FLAG levels
+        let uniqueLabel = node.name;
+        if (level === 1) {
+            // CTRY_CODE level - make unique by prepending TP_FLAG
+            uniqueLabel = `${parent}-${node.name}`;
+        } else if (level === 2) {
+            // CTRY_MONTH level - already unique with parent path
+            uniqueLabel = `${parent}-${node.name}`;
+        }
+
+        labels.push(uniqueLabel);
+        parents.push(parent);
+        text.push(node.name);  // Display the actual name
+
+        if (node.value !== undefined) {
+            values.push(node.value);
+        } else if (node.children) {
+            // Sum of children
+            const total = node.children.reduce((sum, child) => {
+                return sum + (child.value || child.children?.reduce((s, c) => s + (c.value || 0), 0) || 0);
+            }, 0);
+            values.push(total);
+        } else {
+            values.push(0);
+        }
+
+        // Assign colors based on TP_FLAG
+        if (colorMap[node.name]) {
+            colors.push(colorMap[node.name]);
+        } else if (parent === 'All' || colorMap[parent]) {
+            // Child of TP_FLAG
+            colors.push(colorMap[parent] || '#666666');
+        } else {
+            // CTRY_MONTH level - slightly darker
+            colors.push('#555555');
+        }
+
+        if (node.children) {
+            node.children.forEach(child => addNode(child, uniqueLabel, level + 1));
+        }
+    }
+
+    hierarchy.children.forEach(child => addNode(child, 'All', 0));
+
+    const data = [{
+        type: 'sunburst',
+        labels: labels,
+        parents: parents,
+        values: values,
+        text: text,
+        branchvalues: 'total',
+        marker: {
+            colors: colors,
+            line: {
+                color: '#ffffff',
+                width: 2
+            }
+        },
+        textfont: {
+            color: '#ffffff',
+            size: 11,
+            family: 'Arial'
+        },
+        hovertemplate: '<b>%{text}</b><br>Count: %{value}<br>%{percentParent}<extra></extra>',
+        insidetextorientation: 'radial'
+    }];
+
+    const layout = {
+        margin: {t: 10, r: 10, b: 10, l: 10},
+        paper_bgcolor: '#1a1a1a',
+        plot_bgcolor: '#1a1a1a',
+        height: 650
+    };
+
+    Plotly.newPlot('sunburst-chart', data, layout, {displayModeBar: false});
+
+    // Add click handler for filtering
+    const sunburstChart = document.getElementById('sunburst-chart');
+    sunburstChart.on('plotly_sunburstclick', function(eventData) {
+        const point = eventData.points[0];
+        const actualValue = point.text;  // Use text instead of label (contains actual value)
+        const label = point.label;  // Unique label for debugging
+
+        console.log('Sunburst clicked:', actualValue, 'label:', label);
+
+        // Check if "All" (center) is clicked - reset all filters
+        if (actualValue === 'All' || label === 'All') {
+            Object.values(dimensions).forEach(dim => dim.filterAll());
+            updateAll();
+            return;
+        }
+
+        // Determine which dimension to filter based on actual value
+        if (actualValue === 'TP' || actualValue === 'TN' || actualValue === 'PN') {
+            // TP_FLAG level
+            if (dimensions.TP_FLAG.hasCurrentFilter()) {
+                dimensions.TP_FLAG.filterAll();
+            } else {
+                dimensions.TP_FLAG.filter(actualValue);
+            }
+        } else if (actualValue.length === 2) {
+            // Country code (2 letters like CA, FR, MX)
+            if (!dimensions.CTRY_CODE) {
+                dimensions.CTRY_CODE = ndx.dimension(d => d.CTRY_CODE || 'Unknown');
+            }
+            if (dimensions.CTRY_CODE.hasCurrentFilter()) {
+                dimensions.CTRY_CODE.filterAll();
+            } else {
+                dimensions.CTRY_CODE.filter(actualValue);
+            }
+        } else if (actualValue.length === 4 || actualValue.includes('0') || actualValue.includes('1')) {
+            // CTRY_MONTH (e.g., CA08, FR02)
+            if (!dimensions.CTRY_MONTH) {
+                dimensions.CTRY_MONTH = ndx.dimension(d => d.CTRY_MONTH || 'Unknown');
+            }
+            if (dimensions.CTRY_MONTH.hasCurrentFilter()) {
+                dimensions.CTRY_MONTH.filterAll();
+            } else {
+                dimensions.CTRY_MONTH.filter(actualValue);
+            }
+        }
+
+        // Update all charts (will refresh sunburst if on dashboard2)
+        updateAll();
+    });
+}
+
+function updateDataTableDashboard2() {
+    const filteredData = Object.values(dimensions)[0]?.top(Infinity) || [];
+
+    // Specify the columns we want to display
+    const priorityColumns = ['TP_FLAG', 'MONTH', 'CTRY_CODE', 'CTRY_MONTH', 'ENTY_ID'];
+    const displayColumns = priorityColumns.filter(col =>
+        categoricalColumns.includes(col) || numericColumns.includes(col)
+    );
+
+    // Prepare table data for Plotly
+    const headerValues = ['#', ...displayColumns];
+    const cellValues = [
+        // Row numbers
+        filteredData.map((d, i) => i + 1),
+        // Data columns
+        ...displayColumns.map(col =>
+            filteredData.map(d => {
+                const value = d[col];
+                return typeof value === 'number' ? value.toFixed(3) : value;
+            })
+        )
+    ];
+
+    const tableData = [{
+        type: 'table',
+        columnwidth: [40, ...displayColumns.map(() => 80)],
+        header: {
+            values: headerValues,
+            align: 'center',
+            line: {width: 1, color: '#374151'},
+            fill: {color: '#242424'},
+            font: {family: "Arial", size: 10, color: "white"}
+        },
+        cells: {
+            values: cellValues,
+            align: 'center',
+            line: {width: 1, color: '#374151'},
+            fill: {color: [
+                filteredData.map((_, i) => i % 2 === 0 ? '#1a1a1a' : '#2a2a2a')
+            ]},
+            font: {family: "Arial", size: 9, color: "#a1a1aa"}
+        }
+    }];
+
+    const layout = {
+        margin: {t: 10, b: 10, l: 10, r: 10},
+        paper_bgcolor: '#1a1a1a',
+        plot_bgcolor: '#1a1a1a',
+        height: 680
+    };
+
+    Plotly.newPlot('plotly-table-dashboard2', tableData, layout, {displayModeBar: false});
+}
+
+// Dashboard 3 - Placeholder for future use
+function generateDashboard3HTML() {
+    return `
+        <div style="display: flex; justify-content: center; align-items: center; height: 650px;">
+            <div style="text-align: center;">
+                <h2 style="color: var(--text-primary); font-size: 2rem; margin-bottom: 20px;">Dashboard 3</h2>
+                <p style="color: var(--text-secondary); font-size: 1.2rem;">Ready for your custom visualizations!</p>
+                <p style="color: var(--text-muted); margin-top: 10px;">Add your charts here by editing generateDashboard3HTML() and createDashboard3Charts()</p>
+            </div>
+        </div>
+    `;
+}
+
+function createDashboard3Charts() {
+    // Placeholder for Dashboard 3 charts
+    console.log('Dashboard 3 ready for implementation');
+}
 
 // Color schemes
 const colorSchemes = {
@@ -714,11 +1058,25 @@ function updateStats() {
 }
 
 function updateAll() {
-    Object.values(charts).forEach(chart => {
-        if (chart.update) chart.update();
-    });
-    updateDataTable();
-    updateStats();
+    // Only update charts that exist on current dashboard
+    if (currentDashboard === 'dashboard1') {
+        Object.values(charts).forEach(chart => {
+            if (chart.update) chart.update();
+        });
+        if (typeof updateDataTable === 'function') updateDataTable();
+        if (typeof updateStats === 'function') updateStats();
+    } else if (currentDashboard === 'dashboard2') {
+        // Update Dashboard 2 charts
+        if (typeof createSunburstChart === 'function') {
+            createSunburstChart();
+        }
+        if (typeof updateDataTableDashboard2 === 'function') {
+            updateDataTableDashboard2();
+        }
+    } else if (currentDashboard === 'dashboard3') {
+        // Update Dashboard 3 charts (placeholder for future implementation)
+        console.log('Dashboard 3 update - ready for custom charts');
+    }
 }
 
 // Global reset functions

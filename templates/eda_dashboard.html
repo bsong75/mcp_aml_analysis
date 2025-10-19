@@ -10,9 +10,22 @@
     <link rel="stylesheet" href="/static/css/dashboard.css">
 </head>
 <body>
+    <!-- Side Tab Navigation -->
+    <div class="side-tabs">
+        <div class="tab-button active" onclick="switchDashboard('dashboard1')" id="tab-1">
+            <span>Dashboard 1</span>
+        </div>
+        <div class="tab-button" onclick="switchDashboard('dashboard2')" id="tab-2">
+            <span>Dashboard 2</span>
+        </div>
+        <div class="tab-button" onclick="switchDashboard('dashboard3')" id="tab-3">
+            <span>Dashboard 3</span>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
-            <h1>Interactive EDA Dashboard</h1>
+            <h1 id="dashboard-title">Interactive EDA Dashboard</h1>
         </div>
 
         <div class="file-info" id="file-info">
@@ -30,7 +43,7 @@
                 </div>
             </div>
         </div>
-        
+
         <div id="dashboard-content" class="loading">
             <p>📊 Loading data and generating visualizations...</p>
         </div>
