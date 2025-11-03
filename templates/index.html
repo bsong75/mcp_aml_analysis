@@ -760,6 +760,10 @@
                             <code>/eda</code>
                             <div class="desc">Comprehensive Exploratory Data Analysis</div>
                         </div>
+                        <div class="command-item" onclick="insertCommand('/globe')">
+                            <code>/globe</code>
+                            <div class="desc">3D Globe choropleth by country code</div>
+                        </div>
                         <div class="command-item" onclick="insertCommand('/feature-analysis')">
                             <code>/feature-analysis</code>
                             <div class="desc">Quick CSV features analysis</div>
@@ -1044,7 +1048,7 @@
             }
             
             // EDA command variations
-            if (lowerMessage === '/eda' || lowerMessage === 'eda' || 
+            if (lowerMessage === '/eda' || lowerMessage === 'eda' ||
                 lowerMessage === 'exploratory data analysis' || lowerMessage === 'comprehensive analysis' ||
                 lowerMessage === 'full eda' || lowerMessage === 'data exploration' ||
                 lowerMessage.includes('exploratory') || lowerMessage.includes('comprehensive eda') ||
@@ -1052,11 +1056,22 @@
                 lowerMessage.includes('run eda') || lowerMessage.includes('perform eda') ||
                 lowerMessage.includes('eda with') || lowerMessage.includes('eda on') ||
                 (lowerMessage.includes('eda') && (lowerMessage.includes('file') || lowerMessage.includes('data') || lowerMessage.includes('csv')))) {
-                
+
                 await runEdaFromChat();
                 return;
             }
-            
+
+            // Globe visualization command variations
+            if (lowerMessage === '/globe' || lowerMessage === 'globe' ||
+                lowerMessage === 'globe visualization' || lowerMessage === 'show globe' ||
+                lowerMessage === '3d globe' || lowerMessage === 'choropleth' ||
+                lowerMessage.includes('globe map') || lowerMessage.includes('country map') ||
+                lowerMessage.includes('3d map')) {
+
+                await runGlobeVisualizationFromChat();
+                return;
+            }
+
             // Neo4j visualization command variations
             if (lowerMessage === '/neo4j-vis' || lowerMessage === '/neo4j' ||
                 lowerMessage === 'neo4j-vis' || lowerMessage === 'neo4j visualization' ||
@@ -1139,6 +1154,7 @@
             if (lowerMessage === '/help' || lowerMessage === 'help' || lowerMessage === '?') {
                 const helpContent = `📚 <strong>Available Commands:</strong><br>
 • <strong>/eda</strong> - Comprehensive Exploratory Data Analysis with correlations & insights
+• <strong>/globe</strong> - 3D Globe choropleth visualization by country code
 • <strong>/feature-analysis</strong> - Quick CSV features analysis with Gradio visualizations
 • <strong>/neo4j-vis</strong> - Get Neo4j graph summary and browser link
 • <strong>/acro [term]</strong> - Look up acronym (e.g., /acro AGC)
@@ -1273,6 +1289,32 @@ You can also drag & drop CSV files directly into the chat area.`;
                 }
             } catch (error) {
                 addMessage(`❌ Neo4j Visualization Error: ${error.message}`, 'ai', 'tool');
+            } finally {
+                setProcessingState(false);
+            }
+        }
+
+        async function runGlobeVisualizationFromChat() {
+            setProcessingState(true);
+
+            try {
+                const response = await fetch('/api/globe-visualization', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({})
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addMessage(`❌ Globe Visualization Error: ${data.error}`, 'ai', 'tool');
+                } else {
+                    addMessage(`🌍 <strong>Globe Visualization:</strong><br><br>${data.response}`, 'ai', 'tool');
+                }
+            } catch (error) {
+                addMessage(`❌ Globe Visualization Error: ${error.message}`, 'ai', 'tool');
             } finally {
                 setProcessingState(false);
             }

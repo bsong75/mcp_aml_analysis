@@ -803,6 +803,27 @@ async def acronym_delete_endpoint(request: dict = {}):
         print(f"Frontend Error: {error_msg}")
         return {"error": error_msg, "status": "execution_error"}
 
+@app.post("/api/globe-visualization")
+async def globe_visualization_endpoint():
+    """Generate 3D Globe choropleth visualization via MCP"""
+    print("🌍 Frontend: Globe visualization endpoint called!")
+
+    try:
+        # Call MCP tool
+        mcp_result = await call_mcp_tool("globe_visualization", {})
+        print(f"MCP Result: {mcp_result}")
+
+        if mcp_result["success"]:
+            return {"response": mcp_result["result"], "status": "success"}
+        else:
+            error_detail = mcp_result.get("error", "Unknown error")
+            print(f"MCP Error: {error_detail}")
+            return {"error": f"Failed to generate globe visualization: {error_detail}", "status": "error"}
+    except Exception as e:
+        error_msg = f"Globe visualization failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
+
 @app.get("/api/tools")
 async def list_tools():
     """List available tools"""
@@ -815,7 +836,8 @@ async def list_tools():
             {"name": "neo4j_visualizations", "description": "Show the GraphDB Details"},
             {"name": "acronym_lookup", "description": "Look up CBP Agriculture acronyms with fuzzy matching"},
             {"name": "acronym_update", "description": "Add or update CBP Agriculture acronyms in the database"},
-            {"name": "acronym_delete", "description": "Delete CBP Agriculture acronyms from the database"}
+            {"name": "acronym_delete", "description": "Delete CBP Agriculture acronyms from the database"},
+            {"name": "globe_visualization", "description": "3D Globe choropleth visualization by country code"}
         ]
     }
 
@@ -826,6 +848,27 @@ async def eda_dashboard(request: Request, file: str = None):
         "request": request,
         "filename": file
     })
+
+@app.get("/globe")
+async def globe_visualization_page(request: Request):
+    """Serve the 3D Globe choropleth visualization page"""
+    return templates.TemplateResponse("globe_visualization.html", {
+        "request": request
+    })
+
+@app.get("/cbp_acronyms.json")
+async def get_cbp_acronyms():
+    """Serve the CBP acronyms JSON file"""
+    import json
+    acronym_file = os.path.join(os.path.dirname(__file__), 'cbp_acronyms.json')
+    try:
+        with open(acronym_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data
+    except FileNotFoundError:
+        return {"error": "CBP acronyms file not found"}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/api/csv-data")
 async def get_csv_data(filename: str = None):

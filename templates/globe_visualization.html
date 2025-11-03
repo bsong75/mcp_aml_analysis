@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Globe Choropleth Visualization</title>
+    <script src="//unpkg.com/globe.gl"></script>
+    <script src="//unpkg.com/topojson-client"></script>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: var(--primary-bg);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        .globe-container-wrapper {
+            display: flex;
+            height: 100vh;
+            gap: 15px;
+            padding: 15px;
+        }
+
+        .globe-main {
+            flex: 1;
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .globe-header {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .globe-header h1 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #globe-container {
+            flex: 1;
+            width: 100%;
+        }
+
+        .globe-sidebar {
+            width: 400px;
+            background: var(--secondary-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: var(--chat-bg);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-header h2 {
+            margin: 0;
+            color: var(--text-primary);
+            font-size: 1.25rem;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .stat-card {
+            background: var(--chat-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            border-left: 3px solid var(--accent-color);
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .country-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .country-item {
+            background: var(--chat-bg);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 3px solid var(--success-color);
+        }
+
+        .country-code {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .country-count {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .back-button {
+            background: var(--accent-color);
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 15px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .back-button:hover {
+            background: var(--accent-hover);
+        }
+    </style>
+</head>
+<body>
+    <div class="globe-container-wrapper">
+        <!-- Main Globe Visualization -->
+        <div class="globe-main">
+            <div class="globe-header">
+                <h1>🌍 3D Globe Choropleth - Country Distribution</h1>
+            </div>
+            <div id="globe-container"></div>
+        </div>
+
+        <!-- Sidebar with Statistics -->
+        <div class="globe-sidebar">
+            <div class="sidebar-header">
+                <h2>📊 Country Statistics</h2>
+            </div>
+            <div class="sidebar-content">
+                <div class="stat-card">
+                    <div class="stat-label">Total Records</div>
+                    <div class="stat-value" id="total-records">Loading...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Countries</div>
+                    <div class="stat-value" id="total-countries">Loading...</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Dataset</div>
+                    <div class="stat-value" id="dataset-name" style="font-size: 1rem;">Loading...</div>
+                </div>
+
+                <h3 style="color: var(--text-primary); margin-top: 20px; margin-bottom: 10px;">Top Countries</h3>
+                <ul class="country-list" id="country-list">
+                    <li class="country-item">Loading...</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let globeInstance;
+
+        async function initGlobe() {
+            try {
+                // Fetch CBP acronyms to get country code mappings
+                const acronymsResponse = await fetch('/cbp_acronyms.json');
+                const acronymsData = await acronymsResponse.json();
+
+                // Extract country codes (2-letter codes that are countries)
+                const iso2ToCountryName = {};
+                for (const [code, definition] of Object.entries(acronymsData)) {
+                    if (code.length === 2 && /^[A-Z]{2}$/.test(code)) {
+                        iso2ToCountryName[code] = definition;
+                    }
+                }
+                console.log('Loaded country codes from CBP:', Object.keys(iso2ToCountryName).length);
+
+                // Fetch CSV data
+                const response = await fetch('/api/csv-data');
+                const result = await response.json();
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                const data = result.data;
+                const filename = result.filename;
+
+                // Update dataset info
+                document.getElementById('dataset-name').textContent = filename;
+
+                // Count records per country code
+                const countryData = {};
+                data.forEach(row => {
+                    if (row.CTRY_CODE) {
+                        countryData[row.CTRY_CODE] = (countryData[row.CTRY_CODE] || 0) + 1;
+                    }
+                });
+
+                console.log('Country codes in data:', Object.keys(countryData));
+
+                // Update statistics
+                const totalRecords = data.length;
+                const totalCountries = Object.keys(countryData).length;
+                document.getElementById('total-records').textContent = totalRecords.toLocaleString();
+                document.getElementById('total-countries').textContent = totalCountries;
+
+                // Update country list (top 10) with full country names
+                const sortedCountries = Object.entries(countryData)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+
+                const countryList = document.getElementById('country-list');
+                countryList.innerHTML = sortedCountries.map(([code, count]) => {
+                    const countryName = iso2ToCountryName[code] || code;
+                    return `
+                        <li class="country-item">
+                            <span class="country-code">${code} - ${countryName}</span>
+                            <span class="country-count">${count.toLocaleString()}</span>
+                        </li>
+                    `;
+                }).join('');
+
+                // Country code ISO-2 to Numeric ISO mapping (world atlas uses numeric IDs)
+                const codeToNumeric = {
+                    'BR': '076', 'CA': '124', 'MX': '484', 'US': '840', 'FR': '250', 'DE': '276',
+                    'GB': '826', 'IT': '380', 'ES': '724', 'CN': '156', 'JP': '392',
+                    'KR': '410', 'IN': '356', 'AR': '032', 'CL': '152',
+                    'AU': '036', 'NZ': '554', 'ZA': '710', 'EG': '818', 'NG': '566',
+                    'RU': '643', 'PL': '616', 'TR': '792', 'SA': '682', 'AE': '784',
+                    'AF': '004', 'AL': '008', 'DZ': '012', 'AD': '020', 'AO': '024',
+                    'AG': '028', 'AM': '051', 'AT': '040', 'AZ': '031', 'BS': '044',
+                    'BH': '048', 'BD': '050', 'BB': '052', 'BY': '112', 'BE': '056',
+                    'BZ': '084', 'BJ': '204', 'BT': '064', 'BO': '068', 'BA': '070',
+                    'BW': '072', 'BN': '096', 'BG': '100', 'BF': '854', 'BI': '108',
+                    'KH': '116', 'CM': '120', 'CV': '132', 'CF': '140', 'TD': '148',
+                    'CO': '170', 'KM': '174', 'CG': '178', 'CD': '180', 'CR': '188',
+                    'CI': '384', 'HR': '191', 'CU': '192', 'CY': '196', 'CZ': '203',
+                    'DK': '208', 'DJ': '262', 'DM': '212', 'DO': '214', 'EC': '218',
+                    'SV': '222', 'GQ': '226', 'ER': '232', 'EE': '233', 'ET': '231',
+                    'FJ': '242', 'FI': '246', 'GA': '266', 'GM': '270', 'GE': '268',
+                    'GH': '288', 'GR': '300', 'GD': '308', 'GT': '320', 'GN': '324',
+                    'GW': '624', 'GY': '328', 'HT': '332', 'HN': '340', 'HU': '348',
+                    'IS': '352', 'ID': '360', 'IR': '364', 'IQ': '368', 'IE': '372',
+                    'IL': '376', 'JM': '388', 'JO': '400', 'KZ': '398', 'KE': '404',
+                    'KI': '296', 'KP': '408', 'KW': '414', 'KG': '417', 'LA': '418',
+                    'LV': '428', 'LB': '422', 'LS': '426', 'LR': '430', 'LY': '434',
+                    'LI': '438', 'LT': '440', 'LU': '442', 'MK': '807', 'MG': '450',
+                    'MW': '454', 'MY': '458', 'MV': '462', 'ML': '466', 'MT': '470',
+                    'MH': '584', 'MR': '478', 'MU': '480', 'FM': '583', 'MD': '498',
+                    'MC': '492', 'MN': '496', 'ME': '499', 'MA': '504', 'MZ': '508',
+                    'MM': '104', 'NA': '516', 'NR': '520', 'NP': '524', 'NL': '528',
+                    'NI': '558', 'NE': '562', 'NO': '578', 'OM': '512', 'PK': '586',
+                    'PW': '585', 'PA': '591', 'PG': '598', 'PY': '600', 'PE': '604',
+                    'PH': '608', 'PT': '620', 'QA': '634', 'RO': '642', 'RW': '646',
+                    'KN': '659', 'LC': '662', 'VC': '670', 'WS': '882', 'SM': '674',
+                    'ST': '678', 'SN': '686', 'RS': '688', 'SC': '690', 'SL': '694',
+                    'SG': '702', 'SK': '703', 'SI': '705', 'SB': '090', 'SO': '706',
+                    'SS': '728', 'LK': '144', 'SD': '729', 'SR': '740', 'SZ': '748',
+                    'SE': '752', 'CH': '756', 'SY': '760', 'TW': '158', 'TJ': '762',
+                    'TZ': '834', 'TH': '764', 'TL': '626', 'TG': '768', 'TO': '776',
+                    'TT': '780', 'TN': '788', 'TM': '795', 'TV': '798', 'UG': '800',
+                    'UA': '804', 'UY': '858', 'UZ': '860', 'VU': '548', 'VE': '862',
+                    'VN': '704', 'YE': '887', 'ZM': '894', 'ZW': '716'
+                };
+
+                // Find max count for color scaling
+                const maxCount = Math.max(...Object.values(countryData));
+
+                // Debug: Check if Brazil mapping exists
+                console.log('BR maps to numeric:', codeToNumeric['BR']);
+                console.log('BR in countryData?', countryData['BR']);
+
+                // Initialize Globe
+                globeInstance = Globe()
+                    (document.getElementById('globe-container'))
+                    .globeImageUrl('//unpkg.com/three-globe/example/img/earth-night.jpg')
+                    .backgroundImageUrl('//unpkg.com/three-globe/example/img/night-sky.png')
+                    .lineHoverPrecision(0)
+                    .polygonsData(await fetch('//unpkg.com/world-atlas/countries-110m.json')
+                        .then(res => res.json())
+                        .then(landTopo => {
+                            const countries = topojson.feature(landTopo, landTopo.objects.countries).features;
+
+                            // Debug: Show first 3 countries to see structure
+                            console.log('First country structure:', countries[0]);
+                            console.log('Sample properties:', countries.slice(0, 3).map(c => ({
+                                id: c.id,
+                                properties: c.properties
+                            })));
+
+                            // Debug: Find Brazil in the world atlas
+                            const brazilCountry = countries.find(c =>
+                                c.properties?.ISO_A3 === 'BRA' ||
+                                c.properties?.name === 'Brazil' ||
+                                c.properties?.NAME === 'Brazil' ||
+                                c.id === 'BRA' ||
+                                c.id === '076'  // Brazil's numeric code
+                            );
+                            console.log('Brazil in world atlas?', brazilCountry ? brazilCountry : 'NOT FOUND');
+
+                            // Add count data to countries
+                            let matchedCount = 0;
+                            const mappedCountries = countries.map(country => {
+                                const numericId = country.id;  // e.g., "076" for Brazil
+                                const countryName = country.properties?.name || '';
+
+                                // Find matching data by numeric ID
+                                let matchingCount = 0;
+                                let originalCode = '';
+
+                                // Try to find matching country code
+                                for (const [code, count] of Object.entries(countryData)) {
+                                    // Match by numeric ID
+                                    if (codeToNumeric[code] === numericId) {
+                                        matchingCount = count;
+                                        originalCode = code;
+                                        matchedCount++;
+
+                                        // Debug specific match
+                                        console.log(`✅ MATCHED ${code} (${iso2ToCountryName[code]}) -> ID:${numericId} (${countryName}): ${count} records`);
+                                        break;
+                                    }
+                                }
+
+                                return {
+                                    ...country,
+                                    count: matchingCount,
+                                    originalCode: originalCode
+                                };
+                            });
+
+                            console.log(`Total countries matched: ${matchedCount} out of ${Object.keys(countryData).length} in data`);
+                            return mappedCountries;
+                        }))
+                    .polygonAltitude(0.01)
+                    .polygonCapColor(d => {
+                        if (!d.count || d.count === 0) return 'rgba(100, 100, 100, 0.3)';
+                        const intensity = d.count / maxCount;
+                        if (intensity > 0.7) return 'rgba(244, 67, 54, 0.8)';      // Red - high
+                        if (intensity > 0.4) return 'rgba(255, 152, 0, 0.8)';      // Orange - medium
+                        if (intensity > 0.2) return 'rgba(255, 235, 59, 0.8)';     // Yellow - low-medium
+                        return 'rgba(76, 175, 80, 0.8)';                            // Green - low
+                    })
+                    .polygonSideColor(() => 'rgba(0, 0, 0, 0.1)')
+                    .polygonStrokeColor(() => '#111')
+                    .polygonLabel(d => {
+                        if (!d.count || d.count === 0) return '';
+                        return `
+                            <div style="background: rgba(0, 0, 0, 0.8); padding: 8px; border-radius: 4px; color: white;">
+                                <b>${d.properties.NAME || d.originalCode}</b><br/>
+                                Code: ${d.originalCode}<br/>
+                                Count: ${d.count.toLocaleString()}
+                            </div>
+                        `;
+                    })
+                    .polygonsTransitionDuration(300);
+
+                // Auto-rotate
+                globeInstance.controls().autoRotate = true;
+                globeInstance.controls().autoRotateSpeed = 0.5;
+
+                // Center the globe in the container
+                globeInstance.pointOfView({ altitude: 2.5 }, 0);
+
+                // Adjust camera on window resize to keep centered
+                window.addEventListener('resize', () => {
+                    globeInstance.width(document.getElementById('globe-container').offsetWidth);
+                    globeInstance.height(document.getElementById('globe-container').offsetHeight);
+                });
+
+            } catch (error) {
+                console.error('Error initializing globe:', error);
+                document.getElementById('globe-container').innerHTML = `
+                    <div style="display: flex; justify-content: center; align-items: center; height: 100%; color: white;">
+                        <div style="text-align: center;">
+                            <h2>❌ Error Loading Globe</h2>
+                            <p>${error.message}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize on page load
+        initGlobe();
+    </script>
+</body>
+</html>

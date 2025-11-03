@@ -536,6 +536,74 @@ def acronym_delete(acronym: str) -> str:
         CBP_ACRONYMS[acronym_clean] = deleted_definition
         return "❌ Error: Failed to save changes to database file."
 
+@tool
+def globe_visualization() -> str:
+    """Generate 3D Globe choropleth visualization data from CSV with CTRY_CODE column
+    Returns:
+        String with globe visualization summary and dashboard link
+    """
+    print("🌍 GLOBE VISUALIZATION TOOL CALLED!")
+
+    try:
+        # Define the features folder
+        features_folder = "/app/graph_features_files"
+
+        # Find most recent CSV file
+        csv_files = glob.glob(f"{features_folder}/*.csv")
+        if not csv_files:
+            return "❌ No CSV files found in graph_features_files folder"
+
+        # Sort by modification time, most recent first
+        csv_files.sort(key=os.path.getmtime, reverse=True)
+        csv_file = csv_files[0]
+        csv_filename = os.path.basename(csv_file)
+        print(f"🌍 Globe Visualization using: {csv_filename}")
+
+        # Load the CSV
+        df = pd.read_csv(csv_file)
+
+        # Clean column names
+        df.columns = df.columns.str.strip()
+
+        # Check if CTRY_CODE column exists
+        if 'CTRY_CODE' not in df.columns:
+            return f"❌ Column 'CTRY_CODE' not found in {csv_filename}. Available columns: {', '.join(df.columns)}"
+
+        # Count records per country
+        country_counts = df['CTRY_CODE'].value_counts().to_dict()
+
+        # Create summary
+        total_countries = len(country_counts)
+        total_records = sum(country_counts.values())
+        top_countries = dict(sorted(country_counts.items(), key=lambda x: x[1], reverse=True)[:5])
+
+        summary = f"""✅ **Globe Visualization Data Ready**
+
+**File:** {csv_filename}
+**Total Records:** {total_records:,}
+**Countries Found:** {total_countries}
+
+**Top 5 Countries by Count:**
+"""
+        for country, count in top_countries.items():
+            summary += f"\n• {country}: {count:,} records"
+
+        summary += f"""
+
+🌍 **Interactive Globe Available:**
+• [Open 3D Globe Visualization](http://localhost:8001/globe) - Interactive 3D choropleth map
+
+The Globe visualization provides:
+• 🌐 3D rotating globe with country data
+• 📊 Choropleth coloring by record count
+• 🖱️ Interactive hover and zoom controls"""
+
+        return summary
+
+    except Exception as e:
+        import traceback
+        return f"❌ Error generating globe visualization: {str(e)}\n{traceback.format_exc()}"
+
 # Convert to MCP tools
 csv_analysis_tool = to_fastmcp(csv_feature_analysis)
 eda_tool = to_fastmcp(exploratory_data_analysis)
@@ -544,10 +612,11 @@ chat_tool = to_fastmcp(chat_agent)
 acronym_tool = to_fastmcp(acronym_lookup)
 acronym_update_tool = to_fastmcp(acronym_update)
 acronym_delete_tool = to_fastmcp(acronym_delete)
+globe_tool = to_fastmcp(globe_visualization)
 
 # Create MCP server
 mcp = FastMCP(name="CBP Agriculture Analysis MCP Server",
-              tools=[csv_analysis_tool, eda_tool, neo4j_tool, chat_tool, acronym_tool, acronym_update_tool, acronym_delete_tool]
+              tools=[csv_analysis_tool, eda_tool, neo4j_tool, chat_tool, acronym_tool, acronym_update_tool, acronym_delete_tool, globe_tool]
             )
 
 if __name__ == "__main__":
@@ -564,6 +633,7 @@ if __name__ == "__main__":
     print("- acronym_lookup: Look up CBP Agriculture acronyms with fuzzy matching")
     print("- acronym_update: Add or update acronyms in the database")
     print("- acronym_delete: Delete acronyms from the database")
+    print("- globe_visualization: Generate 3D globe choropleth by country code")
     print("🔧 Debug mode enabled - will show which tools are called")
 
     # Get host and port from environment variables
