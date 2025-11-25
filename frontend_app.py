@@ -346,249 +346,6 @@ async def neo4j_visualization_endpoint():
         print(f"Frontend Error: {error_msg}")
         return {"error": error_msg, "status": "execution_error"}
 
-def direct_exploratory_data_analysis(csv_filename=None):
-    """Direct EDA without MCP"""
-    import pandas as pd
-    import numpy as np
-    import glob
-    import os
-    
-    try:
-        # Define the features folder
-        features_folder = "/app/graph_features_files"
-
-        # If no specific file provided, find most recent CSV file
-        if not csv_filename:
-            csv_files = glob.glob(f"{features_folder}/*.csv")
-            if not csv_files:
-                return "❌ No CSV files found in graph_features_files folder"
-            # Sort by modification time, most recent first
-            csv_files.sort(key=os.path.getmtime, reverse=True)
-            csv_file = csv_files[0]  # Use most recently modified CSV
-            csv_filename = os.path.basename(csv_file)
-            print(f"📊 EDA using most recent CSV: {csv_filename}")
-        else:
-            csv_file = os.path.join(features_folder, csv_filename)
-            if not os.path.exists(csv_file):
-                return f"❌ CSV file '{csv_filename}' not found in graph_features_files folder"
-
-        # Load the CSV
-        df = pd.read_csv(csv_file)
-
-        # Clean column names (strip whitespace)
-        df.columns = df.columns.str.strip()
-
-        # Basic dataset info
-        rows, cols = df.shape
-        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-        categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
-        
-        # Missing data analysis
-        missing_data = df.isnull().sum()
-        missing_percent = (missing_data / len(df) * 100).round(2)
-        
-        # Data types summary
-        dtype_summary = df.dtypes.value_counts()
-        
-        # Memory usage
-        memory_usage = df.memory_usage(deep=True).sum() / (1024 * 1024)  # MB
-        
-        # Numeric data insights
-        numeric_insights = {}
-        if numeric_cols:
-            numeric_df = df[numeric_cols]
-            
-            # Statistical summary
-            stats = numeric_df.describe()
-            
-            # Skewness and kurtosis
-            skewness = numeric_df.skew().round(3)
-            kurtosis = numeric_df.kurtosis().round(3)
-            
-            # Correlation analysis
-            correlation = numeric_df.corr()
-            high_corr_pairs = []
-            for i in range(len(correlation.columns)):
-                for j in range(i+1, len(correlation.columns)):
-                    corr_val = correlation.iloc[i, j]
-                    if abs(corr_val) > 0.7:  # High correlation threshold
-                        high_corr_pairs.append({
-                            'var1': correlation.columns[i],
-                            'var2': correlation.columns[j],
-                            'correlation': round(corr_val, 3)
-                        })
-            
-            # Outlier detection (using IQR method)
-            outliers_summary = {}
-            for col in numeric_cols:
-                Q1 = df[col].quantile(0.25)
-                Q3 = df[col].quantile(0.75)
-                IQR = Q3 - Q1
-                lower_bound = Q1 - 1.5 * IQR
-                upper_bound = Q3 + 1.5 * IQR
-                outliers = df[(df[col] < lower_bound) | (df[col] > upper_bound)]
-                if len(outliers) > 0:
-                    outliers_summary[col] = {
-                        'count': len(outliers),
-                        'percentage': round(len(outliers) / len(df) * 100, 2)
-                    }
-        
-        # Categorical data insights
-        categorical_insights = {}
-        if categorical_cols:
-            for col in categorical_cols:
-                unique_vals = df[col].nunique()
-                most_frequent = df[col].mode().iloc[0] if len(df[col].mode()) > 0 else 'N/A'
-                categorical_insights[col] = {
-                    'unique_values': unique_vals,
-                    'most_frequent': most_frequent,
-                    'cardinality': 'High' if unique_vals > len(df) * 0.5 else 'Low'
-                }
-        
-        # Data quality assessment
-        duplicate_rows = df.duplicated().sum()
-        complete_cases = df.dropna().shape[0]
-        data_completeness = round(complete_cases / rows * 100, 2)
-        
-        # Generate comprehensive EDA report
-        eda_report = f"""🔍 **Comprehensive Exploratory Data Analysis**
-
-**📋 Dataset Overview:**
-• File: {csv_filename}
-• Dimensions: {rows:,} rows × {cols} columns
-• Memory Usage: {memory_usage:.2f} MB
-• Data Completeness: {data_completeness}%
-• Duplicate Rows: {duplicate_rows:,}
-
-**📊 Column Types:**
-• Numeric: {len(numeric_cols)} columns
-• Categorical: {len(categorical_cols)} columns
-• Data Types: {dict(dtype_summary)}
-
-**🔢 Numeric Data Insights:**"""
-
-        if numeric_cols:
-            eda_report += f"""
-• Variables: {', '.join(numeric_cols[:5])}{'...' if len(numeric_cols) > 5 else ''}
-• Highly Skewed Features: {', '.join([col for col in numeric_cols if abs(skewness.get(col, 0)) > 1][:3]) or 'None'}
-• High Correlations: {len(high_corr_pairs)} pairs found"""
-            
-            if high_corr_pairs:
-                eda_report += f"""
-• Top Correlations:"""
-                for pair in high_corr_pairs[:3]:
-                    eda_report += f"""
-  - {pair['var1']} ↔ {pair['var2']}: {pair['correlation']}"""
-            
-            if outliers_summary:
-                eda_report += f"""
-• Outliers Detected:"""
-                for col, info in list(outliers_summary.items())[:3]:
-                    eda_report += f"""
-  - {col}: {info['count']} outliers ({info['percentage']}%)"""
-        
-        if categorical_cols:
-            eda_report += f"""
-
-**📝 Categorical Data Insights:**"""
-            for col, info in list(categorical_insights.items())[:3]:
-                eda_report += f"""
-• {col}: {info['unique_values']} unique values, most frequent: '{info['most_frequent']}'"""
-
-        eda_report += f"""
-
-**⚠️ Data Quality Issues:**
-• Missing Values: {missing_data.sum():,} total"""
-        
-        missing_cols = missing_data[missing_data > 0]
-        if len(missing_cols) > 0:
-            eda_report += f"""
-• Columns with Missing Data:"""
-            for col in missing_cols.head(3).index:
-                eda_report += f"""
-  - {col}: {missing_data[col]:,} ({missing_percent[col]:.1f}%)"""
-
-        eda_report += f"""
-
-**🔗 Interactive Analysis:**
-• [Open EDA Dashboard](http://localhost:8001/dashboard) - Interactive crossfilter analysis (uses most recent CSV)"""
-
-        return eda_report
-        
-    except Exception as e:
-        return f"❌ Error in EDA: {str(e)}"
-
-def direct_csv_feature_analysis(csv_filename=None):
-    """Direct CSV feature analysis without MCP"""
-    import pandas as pd
-    import glob
-    import os
-    
-    try:
-        # Define the features folder
-        features_folder = "/app/graph_features_files"
-
-        # If no specific file provided, find most recent CSV file
-        if not csv_filename:
-            csv_files = glob.glob(f"{features_folder}/*.csv")
-            if not csv_files:
-                return "❌ No CSV files found in graph_features_files folder"
-            # Sort by modification time, most recent first
-            csv_files.sort(key=os.path.getmtime, reverse=True)
-            csv_file = csv_files[0]  # Use most recently modified CSV
-            csv_filename = os.path.basename(csv_file)
-            print(f"📊 Feature Analysis using most recent CSV: {csv_filename}")
-        else:
-            csv_file = os.path.join(features_folder, csv_filename)
-            if not os.path.exists(csv_file):
-                return f"❌ CSV file '{csv_filename}' not found in graph_features_files folder"
-
-        # Load and analyze the CSV
-        df = pd.read_csv(csv_file)
-
-        # Clean column names (strip whitespace)
-        df.columns = df.columns.str.strip()
-
-        # Get basic info
-        rows, cols = df.shape
-        numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-        feature_cols = [col for col in numeric_cols if 'Id' not in col and 'nodeId' not in col]
-        
-        # Calculate summary statistics
-        if feature_cols:
-            stats = df[feature_cols].describe()
-            mean_vals = stats.loc['mean'].round(3)
-            std_vals = stats.loc['std'].round(3)
-            
-            # Find most variable features (highest coefficient of variation)
-            cv = (std_vals / mean_vals).sort_values(ascending=False)
-            top_variable = cv.head(3).index.tolist()
-        else:
-            top_variable = []
-        
-        # Create summary
-        summary = f"""✅ **Graph Features Analysis Complete**
-
-**File:** {csv_filename}
-**Dataset Size:** {rows} rows × {cols} columns
-**Features Analyzed:** {len(feature_cols)} numeric features
-
-**Key Insights:**
-• Total features: {', '.join(feature_cols[:5])}{'...' if len(feature_cols) > 5 else ''}
-• Most variable features: {', '.join(top_variable) if top_variable else 'None'}
-• Data completeness: {100 - (df.isnull().sum().sum() / (rows * cols) * 100):.1f}%
-
-🎯 **Interactive Analysis Available:**
-• [Open Gradio Feature Analyzer](http://localhost:7860) - Detailed feature analysis with visualizations
-
-The Gradio analyzer provides:
-• 📈 Statistical summaries and quality assessments
-• 📦 Distribution plots, boxplots, and correlation heatmaps"""
-        
-        return summary
-        
-    except Exception as e:
-        return f"❌ Error analyzing CSV: {str(e)}"
 
 @app.post("/api/csv-feature-analysis")
 async def csv_feature_analysis_endpoint(request: dict = {}):
@@ -598,61 +355,57 @@ async def csv_feature_analysis_endpoint(request: dict = {}):
 
     csv_filename = request.get('csv_filename') if request else None
 
-    # Try MCP first, fall back to direct function call
     try:
         # Only include csv_filename in arguments if it's provided
         args = {"csv_filename": csv_filename} if csv_filename else {}
         mcp_result = await call_mcp_tool("csv_feature_analysis", args)
-        
+
         if mcp_result["success"]:
             return {"response": mcp_result["result"], "status": "success"}
         else:
-            raise Exception(mcp_result.get("error", "MCP tool failed"))
+            error_detail = mcp_result.get("error", "Unknown error")
+            print(f"MCP Error: {error_detail}")
+            return {"error": f"CSV analysis failed: {error_detail}", "status": "error"}
     except Exception as e:
-        print(f"MCP error: {e}, falling back to direct function...")
-        
-        # Fallback to direct function call
-        try:
-            result = direct_csv_feature_analysis(csv_filename)
-            return {"response": result, "status": "success"}
-        except Exception as e:
-            error_msg = f"CSV analysis failed: {str(e)}"
-            print(f"Frontend Error: {error_msg}")
-            return {"error": error_msg, "status": "execution_error"}
+        error_msg = f"CSV analysis failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
 
 @app.post("/api/upload-csv")
 async def upload_csv_file(file: UploadFile = File(...)):
     """Upload CSV file for analysis"""
     print(f"📂 File upload: {file.filename}")
-    
+
     # Validate file type
     if not file.filename.endswith('.csv'):
         return {"error": "Only CSV files are allowed", "status": "invalid_file"}
-    
+
     try:
         # Ensure upload directory exists
         upload_dir = "/app/graph_features_files"
         os.makedirs(upload_dir, exist_ok=True)
-        
+
         # Save uploaded file
         file_path = os.path.join(upload_dir, file.filename)
         content = await file.read()
-        
+
         with open(file_path, "wb") as f:
             f.write(content)
-        
+
         print(f"✅ File saved: {file_path}")
-        
-        # Immediately analyze the uploaded file
-        result = direct_csv_feature_analysis(file.filename)
-        
+
+        # Immediately analyze the uploaded file via MCP
+        mcp_result = await call_mcp_tool("csv_feature_analysis", {"csv_filename": file.filename})
+
+        analysis_result = mcp_result.get("result", "Analysis pending") if mcp_result.get("success") else f"Analysis error: {mcp_result.get('error', 'Unknown error')}"
+
         return {
             "status": "success",
             "filename": file.filename,
             "message": f"File '{file.filename}' uploaded successfully",
-            "analysis": result
+            "analysis": analysis_result
         }
-        
+
     except Exception as e:
         error_msg = f"Upload failed: {str(e)}"
         print(f"❌ Upload error: {error_msg}")
@@ -705,27 +458,21 @@ async def eda_endpoint(request: dict = {}):
 
     csv_filename = request.get('csv_filename') if request else None
 
-    # Try MCP first, fall back to direct function call
     try:
         # Only include csv_filename in arguments if it's provided
         args = {"csv_filename": csv_filename} if csv_filename else {}
         mcp_result = await call_mcp_tool("exploratory_data_analysis", args)
-        
+
         if mcp_result["success"]:
             return {"response": mcp_result["result"], "status": "success"}
         else:
-            raise Exception(mcp_result.get("error", "MCP tool failed"))
+            error_detail = mcp_result.get("error", "Unknown error")
+            print(f"MCP Error: {error_detail}")
+            return {"error": f"EDA failed: {error_detail}", "status": "error"}
     except Exception as e:
-        print(f"MCP error: {e}, falling back to direct function...")
-        
-        # Fallback to direct function call
-        try:
-            result = direct_exploratory_data_analysis(csv_filename)
-            return {"response": result, "status": "success"}
-        except Exception as e:
-            error_msg = f"EDA failed: {str(e)}"
-            print(f"Frontend Error: {error_msg}")
-            return {"error": error_msg, "status": "execution_error"}
+        error_msg = f"EDA failed: {str(e)}"
+        print(f"Frontend Error: {error_msg}")
+        return {"error": error_msg, "status": "execution_error"}
 
 @app.post("/api/acronym-lookup")
 async def acronym_lookup_endpoint(request: dict = {}):
